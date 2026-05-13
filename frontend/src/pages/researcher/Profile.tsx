@@ -118,7 +118,7 @@ export default function ProfilePage() {
                 <label className="block text-xs text-gray-400 mb-1">Preferred language</label>
                 <select
                   value={language}
-                  onChange={e => setLanguage(e.target.value)}
+                  onChange={e => setLanguage(e.target.value as 'en' | 'bn')}
                   className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-emerald-400 bg-white"
                 >
                   <option value="en">English</option>

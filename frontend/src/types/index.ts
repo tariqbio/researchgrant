@@ -31,6 +31,8 @@ export interface Grant {
   source_url: string | null
   status: GrantStatus
   ai_confidence_score: number | null
+  ai_extracted_fields: Record<string, unknown> | null
+  created_at: string
   days_until_deadline: number | null
   is_watchlisted: boolean | null
   match_reasons: string[] | null

@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: grantbd
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: SECRET_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: SENDGRID_API_KEY
+        sync: false
+      - key: SENDGRID_FROM_EMAIL
+        sync: false
+      - key: GOOGLE_VISION_CREDENTIALS
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ENVIRONMENT
+        value: production
+      - key: PORT
+        value: "8000"

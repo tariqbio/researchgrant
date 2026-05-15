@@ -5,8 +5,8 @@ import type { User } from '../types'
 interface AuthContextType {
   user: User | null
   loading: boolean
-  login: (email: string, password: string) => Promise<void>
-  register: (data: { email: string; password: string; full_name: string; institution?: string }) => Promise<void>
+  login: (email: string, password: string) => Promise<User>
+  register: (data: { email: string; password: string; full_name: string; institution?: string }) => Promise<User>
   logout: () => void
   refreshUser: () => Promise<void>
 }
@@ -33,12 +33,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const data = await authApi.login(email, password)
     localStorage.setItem('access_token', data.access_token)
     setUser(data.user)
+    return data.user
   }
 
   const register = async (payload: { email: string; password: string; full_name: string; institution?: string }) => {
     const data = await authApi.register(payload)
     localStorage.setItem('access_token', data.access_token)
     setUser(data.user)
+    return data.user
   }
 
   const logout = () => {

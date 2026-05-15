@@ -92,6 +92,14 @@ The startup script (`start.sh`) will:
 
 Railway detects the Dockerfile and deploys automatically on every push.
 
+After the deploy finishes, sign in from the landing page using `ADMIN_EMAIL`
+and `ADMIN_PASSWORD`. Admin users are sent to `/admin` automatically. If the
+admin link is not visible, the account was not seeded as admin; check the
+startup logs for `Admin user created` or `Admin ... password refreshed from env`.
+
+`ADMIN_PASS` is also accepted as an alias for `ADMIN_PASSWORD`, but
+`ADMIN_PASSWORD` is the recommended variable name.
+
 ---
 
 ## Local Development

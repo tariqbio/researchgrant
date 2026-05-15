@@ -92,7 +92,7 @@ if result.returncode != 0:
 log("Migrations complete")
 
 admin_email = os.environ.get("ADMIN_EMAIL", "")
-admin_password = os.environ.get("ADMIN_PASSWORD", "")
+admin_password = os.environ.get("ADMIN_PASSWORD", "") or os.environ.get("ADMIN_PASS", "")
 if admin_email and admin_password:
     log(f"Seeding admin: {admin_email}")
     result = subprocess.run(["python", "-m", "app.core.seed_admin"], env=env)

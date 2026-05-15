@@ -4,6 +4,7 @@ import { grantApi } from '../../api'
 import { useQuery } from 'react-query'
 import { formatDeadline, deadlineDaysLeft, deadlineUrgency, urgencyClasses, formatFunding } from '../../utils'
 import { apiClient } from '../../api/client'
+import Topbar from '../../components/layout/Topbar'
 
 const FEATURED_AGENCIES = [
   { abbr: 'UGC',   name: 'University Grants Commission' },
@@ -47,6 +48,7 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-white">
+      <Topbar />
 
       {/* Hero */}
       <section className="bg-gradient-to-b from-gray-50 to-white border-b border-gray-100 px-4 py-16 text-center">

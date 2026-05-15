@@ -15,8 +15,8 @@ export function LoginPage() {
     setError('')
     setLoading(true)
     try {
-      await login(email, password)
-      navigate('/dashboard')
+      const user = await login(email, password)
+      navigate(user.is_admin ? '/admin' : '/dashboard')
     } catch {
       setError('Invalid email or password.')
     } finally {
@@ -88,7 +88,11 @@ export function RegisterPage() {
     setError('')
     setLoading(true)
     try {
-      await register(form)
+      const user = await register(form)
+      if (user.is_admin) {
+        navigate('/admin')
+        return
+      }
       navigate('/profile')  // send to profile to set interests
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Registration failed.')

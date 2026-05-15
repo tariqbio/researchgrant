@@ -18,30 +18,35 @@ Environment variables:
 
 import os
 import sys
+from sqlalchemy import func
 from app.db.session import SessionLocal
 from app.models.user import User
 from app.core.security import hash_password
 
 
 def seed_admin():
-    email = os.environ.get("ADMIN_EMAIL")
-    password = os.environ.get("ADMIN_PASSWORD")
+    email = (os.environ.get("ADMIN_EMAIL") or "").strip().lower()
+    password = os.environ.get("ADMIN_PASSWORD") or os.environ.get("ADMIN_PASS") or ""
     name = os.environ.get("ADMIN_NAME", "Admin")
 
     if not email or not password:
-        print("⚠ ADMIN_EMAIL and ADMIN_PASSWORD not set — skipping admin seed")
+        print("ADMIN_EMAIL and ADMIN_PASSWORD are not set; skipping admin seed")
         return
 
     db = SessionLocal()
     try:
-        existing = db.query(User).filter(User.email == email).first()
+        existing = db.query(User).filter(func.lower(User.email) == email).first()
         if existing:
+            existing.hashed_password = hash_password(password)
+            existing.full_name = existing.full_name or name
+            existing.is_verified = True
             if not existing.is_admin:
                 existing.is_admin = True
                 db.commit()
-                print(f"✓ Promoted existing user {email} to admin")
+                print(f"Promoted existing user {email} to admin and updated password")
             else:
-                print(f"✓ Admin {email} already exists")
+                db.commit()
+                print(f"Admin {email} already exists; password refreshed from env")
             return
 
         admin = User(
@@ -54,7 +59,7 @@ def seed_admin():
         )
         db.add(admin)
         db.commit()
-        print(f"✓ Admin user created: {email}")
+        print(f"Admin user created: {email}")
     finally:
         db.close()
 

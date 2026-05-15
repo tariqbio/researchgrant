@@ -31,7 +31,7 @@ class UserOut(BaseModel):
     preferred_language: str
     email_alerts_enabled: bool
     is_admin: bool
-    created_at: datetime
+    created_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

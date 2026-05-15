@@ -48,6 +48,20 @@ function PasswordField({
   )
 }
 
+function AuthHeader({ subtitle }: { subtitle: string }) {
+  return (
+    <div className="text-center mb-6">
+      <Link to="/" className="text-xl font-medium text-gray-900 inline-block hover:text-gray-700">
+        Grant<span className="text-emerald-600">BD</span>
+      </Link>
+      <p className="text-sm text-gray-400 mt-1">{subtitle}</p>
+      <Link to="/" className="inline-block text-xs text-emerald-600 hover:text-emerald-700 mt-3">
+        Back to home
+      </Link>
+    </div>
+  )
+}
+
 export function LoginPage() {
   const { login } = useAuth()
   const navigate = useNavigate()
@@ -73,10 +87,7 @@ export function LoginPage() {
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
-        <div className="text-center mb-6">
-          <h1 className="text-xl font-medium text-gray-900">Grant<span className="text-emerald-600">BD</span></h1>
-          <p className="text-sm text-gray-400 mt-1">Sign in to your account</p>
-        </div>
+        <AuthHeader subtitle="Sign in to your account" />
         <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -144,10 +155,7 @@ export function RegisterPage() {
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
-        <div className="text-center mb-6">
-          <h1 className="text-xl font-medium text-gray-900">Grant<span className="text-emerald-600">BD</span></h1>
-          <p className="text-sm text-gray-400 mt-1">Create your researcher account</p>
-        </div>
+        <AuthHeader subtitle="Create your researcher account" />
         <div className="bg-white border border-gray-100 rounded-2xl p-6 shadow-sm">
           <form onSubmit={handleSubmit} className="space-y-4">
             {[

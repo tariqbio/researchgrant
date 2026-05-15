@@ -5,193 +5,281 @@ import { apiClient } from '../../api/client'
 import GrantCard from '../../components/grants/GrantCard'
 
 const RESEARCH_AREAS = [
-  { value: 'agriculture', label: 'Agriculture' },
-  { value: 'biotechnology', label: 'Biotechnology' },
-  { value: 'ict', label: 'ICT / Software' },
-  { value: 'ai_ml', label: 'AI & Machine Learning' },
-  { value: 'data_science', label: 'Data Science' },
-  { value: 'climate_environment', label: 'Climate & Environment' },
-  { value: 'public_health', label: 'Public Health' },
-  { value: 'medicine', label: 'Medicine' },
-  { value: 'education', label: 'Education' },
-  { value: 'social_sciences', label: 'Social Sciences' },
-  { value: 'economics', label: 'Economics' },
-  { value: 'engineering', label: 'Engineering' },
-  { value: 'chemistry', label: 'Chemistry' },
-  { value: 'physics', label: 'Physics' },
+  { value: 'agriculture',           label: 'Agriculture' },
+  { value: 'ai_ml',                 label: 'AI & Machine Learning' },
+  { value: 'biotechnology',         label: 'Biotechnology' },
+  { value: 'chemistry',             label: 'Chemistry' },
+  { value: 'climate_environment',   label: 'Climate & Environment' },
+  { value: 'data_science',          label: 'Data Science' },
+  { value: 'economics',             label: 'Economics' },
+  { value: 'education',             label: 'Education' },
+  { value: 'engineering',           label: 'Engineering' },
+  { value: 'ict',                   label: 'ICT / Software' },
+  { value: 'life_sciences',         label: 'Life Sciences' },
+  { value: 'mathematics',           label: 'Mathematics' },
+  { value: 'medicine',              label: 'Medicine' },
+  { value: 'physics',               label: 'Physics' },
+  { value: 'public_health',         label: 'Public Health' },
+  { value: 'renewable_energy',      label: 'Renewable Energy' },
+  { value: 'social_sciences',       label: 'Social Sciences' },
+  { value: 'water_resources',       label: 'Water Resources' },
 ]
+
+function FilterPanel({
+  selectedAreas, deadlineFilter, onToggleArea, onDeadlineChange, onClear, hasFilters,
+}: {
+  selectedAreas: string[]; deadlineFilter: string
+  onToggleArea: (a: string) => void; onDeadlineChange: (v: string) => void
+  onClear: () => void; hasFilters: boolean
+}) {
+  return (
+    <>
+      <div className="mb-5">
+        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+          Deadline
+        </label>
+        <select
+          value={deadlineFilter}
+          onChange={e => onDeadlineChange(e.target.value)}
+          className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2
+                     focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-white"
+        >
+          <option value="">Any time</option>
+          <option value="7">Within 7 days</option>
+          <option value="30">Within 30 days</option>
+          <option value="90">Within 90 days</option>
+        </select>
+      </div>
+
+      <div className="mb-4">
+        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+          Research Area
+        </label>
+        <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
+          {RESEARCH_AREAS.map(area => (
+            <label key={area.value} className="flex items-center gap-2 cursor-pointer group py-0.5">
+              <input
+                type="checkbox"
+                checked={selectedAreas.includes(area.value)}
+                onChange={() => onToggleArea(area.value)}
+                className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+              />
+              <span className="text-sm text-gray-700 group-hover:text-gray-900">
+                {area.label}
+              </span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {hasFilters && (
+        <button
+          onClick={onClear}
+          className="text-xs text-red-500 hover:text-red-700 font-medium"
+        >
+          Clear all filters
+        </button>
+      )}
+    </>
+  )
+}
 
 export default function BrowsePage() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const [query, setQuery] = useState(searchParams.get('q') || '')
+  const [query, setQuery]               = useState(searchParams.get('q') || '')
   const [selectedAreas, setSelectedAreas] = useState<string[]>(
     searchParams.get('areas') ? searchParams.get('areas')!.split(',') : []
   )
   const [deadlineFilter, setDeadlineFilter] = useState(searchParams.get('deadline') || '')
-  const [sortBy, setSortBy] = useState(searchParams.get('sort') || 'deadline')
-  const [page, setPage] = useState(1)
+  const [sortBy, setSortBy]   = useState(searchParams.get('sort') || 'deadline')
+  const [page, setPage]       = useState(1)
+  const [drawerOpen, setDrawerOpen] = useState(false)
 
-  // Sync filters into URL
   useEffect(() => {
     const params: Record<string, string> = {}
-    if (query) params.q = query
-    if (selectedAreas.length) params.areas = selectedAreas.join(',')
-    if (deadlineFilter) params.deadline = deadlineFilter
-    if (sortBy !== 'deadline') params.sort = sortBy
+    if (query)              params.q        = query
+    if (selectedAreas.length) params.areas  = selectedAreas.join(',')
+    if (deadlineFilter)     params.deadline = deadlineFilter
+    if (sortBy !== 'deadline') params.sort  = sortBy
     setSearchParams(params, { replace: true })
     setPage(1)
   }, [query, selectedAreas, deadlineFilter, sortBy])
 
-  const { data, isLoading } = useQuery(
+  const { data, isLoading, isPreviousData } = useQuery(
     ['grants', query, selectedAreas, deadlineFilter, sortBy, page],
     async () => {
-      const params = new URLSearchParams()
-      if (query) params.set('query', query)
-      if (selectedAreas.length) params.set('research_areas', selectedAreas.join(','))
-      if (deadlineFilter) params.set('deadline_within_days', deadlineFilter)
-      params.set('sort_by', sortBy)
-      params.set('page', String(page))
-      params.set('page_size', '15')
-      const res = await apiClient.get(`/grants/public?${params}`)
+      const p = new URLSearchParams()
+      if (query)             p.set('query', query)
+      if (selectedAreas.length) p.set('research_areas', selectedAreas.join(','))
+      if (deadlineFilter)    p.set('deadline_within_days', deadlineFilter)
+      p.set('sort_by', sortBy); p.set('page', String(page)); p.set('page_size', '15')
+      const res = await apiClient.get(`/grants/public?${p}`)
       return res.data
     },
     { keepPreviousData: true }
   )
 
-  const toggleArea = (area: string) => {
+  const toggleArea = (area: string) =>
     setSelectedAreas(prev =>
       prev.includes(area) ? prev.filter(a => a !== area) : [...prev, area]
     )
-  }
 
+  const clearAll = () => { setSelectedAreas([]); setDeadlineFilter(''); setQuery('') }
+  const hasFilters = selectedAreas.length > 0 || !!deadlineFilter || !!query
   const totalPages = data ? Math.ceil(data.total / 15) : 0
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Browse Grants</h1>
-        <p className="text-gray-500 text-sm mt-1">
-          {data ? `${data.total} grants found` : 'Loading...'}
-        </p>
+    <div className="max-w-7xl mx-auto px-4 py-6">
+      <div className="mb-5 flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">Browse Grants</h1>
+          <p className="text-gray-400 text-sm mt-0.5">
+            {data ? `${data.total} grants` : 'Loading…'}
+          </p>
+        </div>
+        {/* Mobile filter button */}
+        <button
+          onClick={() => setDrawerOpen(true)}
+          className="md:hidden flex items-center gap-1.5 text-sm border border-gray-200
+                     rounded-lg px-3 py-1.5 text-gray-600 hover:bg-gray-50"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round"
+                  d="M3 4h18M6 8h12M10 12h4"/>
+          </svg>
+          Filters
+          {hasFilters && (
+            <span className="bg-emerald-600 text-white text-[10px] rounded-full w-4 h-4
+                             flex items-center justify-center font-bold">
+              {selectedAreas.length + (deadlineFilter ? 1 : 0)}
+            </span>
+          )}
+        </button>
       </div>
 
-      <div className="flex gap-6">
-        {/* Sidebar filters */}
-        <aside className="w-64 flex-shrink-0">
-          <div className="bg-white rounded-xl border border-gray-200 p-4 sticky top-20">
-            <h3 className="font-semibold text-gray-900 mb-3 text-sm uppercase tracking-wide">Filters</h3>
-
-            {/* Deadline filter */}
-            <div className="mb-5">
-              <label className="block text-xs font-medium text-gray-600 mb-2">Deadline</label>
-              <select
-                value={deadlineFilter}
-                onChange={e => setDeadlineFilter(e.target.value)}
-                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Any time</option>
-                <option value="7">Within 7 days</option>
-                <option value="30">Within 30 days</option>
-                <option value="90">Within 90 days</option>
-              </select>
-            </div>
-
-            {/* Research areas */}
-            <div className="mb-5">
-              <label className="block text-xs font-medium text-gray-600 mb-2">Research Area</label>
-              <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
-                {RESEARCH_AREAS.map(area => (
-                  <label key={area.value} className="flex items-center gap-2 cursor-pointer group">
-                    <input
-                      type="checkbox"
-                      checked={selectedAreas.includes(area.value)}
-                      onChange={() => toggleArea(area.value)}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="text-sm text-gray-700 group-hover:text-gray-900">{area.label}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            {(selectedAreas.length > 0 || deadlineFilter || query) && (
-              <button
-                onClick={() => { setSelectedAreas([]); setDeadlineFilter(''); setQuery('') }}
-                className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-              >
-                Clear all filters
+      {/* Mobile drawer overlay */}
+      {drawerOpen && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setDrawerOpen(false)} />
+          <div className="absolute left-0 top-0 h-full w-72 bg-white shadow-xl p-5 overflow-y-auto">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="font-semibold text-gray-900">Filters</h3>
+              <button onClick={() => setDrawerOpen(false)} className="text-gray-400 hover:text-gray-600">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
               </button>
-            )}
+            </div>
+            <FilterPanel
+              selectedAreas={selectedAreas} deadlineFilter={deadlineFilter}
+              onToggleArea={toggleArea} onDeadlineChange={setDeadlineFilter}
+              onClear={clearAll} hasFilters={hasFilters}
+            />
+            <button
+              onClick={() => setDrawerOpen(false)}
+              className="mt-5 w-full bg-emerald-600 text-white py-2.5 rounded-xl text-sm font-semibold"
+            >
+              Show results
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="flex gap-6">
+        {/* Desktop sidebar */}
+        <aside className="hidden md:block w-56 flex-shrink-0">
+          <div className="bg-white rounded-xl border border-gray-100 p-4 sticky top-16">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Filters</h3>
+            <FilterPanel
+              selectedAreas={selectedAreas} deadlineFilter={deadlineFilter}
+              onToggleArea={toggleArea} onDeadlineChange={setDeadlineFilter}
+              onClear={clearAll} hasFilters={hasFilters}
+            />
           </div>
         </aside>
 
-        {/* Main content */}
         <div className="flex-1 min-w-0">
-          {/* Search + sort bar */}
-          <div className="flex gap-3 mb-5">
+          {/* Search + sort */}
+          <div className="flex gap-2 mb-4">
             <div className="relative flex-1">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"
+                   fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
               </svg>
               <input
                 type="text"
-                placeholder="Search grants by keyword, agency..."
+                placeholder="Keyword, agency, বাংলায় খুঁজুন..."
                 value={query}
                 onChange={e => setQuery(e.target.value)}
-                className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                dir="auto"
+                className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm
+                           focus:outline-none focus:ring-2 focus:ring-emerald-400"
               />
+              {query && (
+                <button onClick={() => setQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" d="M6 18L18 6M6 6l12 12"/>
+                  </svg>
+                </button>
+              )}
             </div>
             <select
               value={sortBy}
               onChange={e => setSortBy(e.target.value)}
-              className="text-sm border border-gray-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              className="text-sm border border-gray-200 rounded-xl px-3 py-2.5 bg-white
+                         focus:outline-none focus:ring-2 focus:ring-emerald-400"
             >
-              <option value="deadline">Deadline (soonest)</option>
+              <option value="deadline">Deadline ↑</option>
               <option value="newest">Newest first</option>
               <option value="funding_max">Highest funding</option>
             </select>
           </div>
 
-          {/* Selected area chips */}
+          {/* Active filter chips */}
           {selectedAreas.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-4">
+            <div className="flex flex-wrap gap-1.5 mb-3">
               {selectedAreas.map(area => (
-                <span
+                <button
                   key={area}
                   onClick={() => toggleArea(area)}
-                  className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 text-xs font-medium px-2.5 py-1 rounded-full cursor-pointer hover:bg-blue-100"
+                  className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700
+                             text-xs font-medium px-2.5 py-1 rounded-full hover:bg-emerald-100"
                 >
-                  {RESEARCH_AREAS.find(r => r.value === area)?.label || area}
-                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                  {RESEARCH_AREAS.find(r => r.value === area)?.label}
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" d="M6 18L18 6M6 6l12 12"/>
                   </svg>
-                </span>
+                </button>
               ))}
+              <button onClick={clearAll} className="text-xs text-gray-400 hover:text-red-500 px-1">
+                Clear all
+              </button>
             </div>
           )}
 
-          {/* Grant cards */}
-          {isLoading ? (
-            <div className="space-y-4">
-              {[...Array(5)].map((_, i) => (
-                <div key={i} className="bg-white rounded-xl border border-gray-200 h-36 animate-pulse" />
-              ))}
-            </div>
-          ) : data?.items?.length === 0 ? (
-            <div className="text-center py-20 text-gray-400">
-              <svg className="w-12 h-12 mx-auto mb-3 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <p className="font-medium text-gray-500">No grants found</p>
-              <p className="text-sm mt-1">Try adjusting your filters</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {data?.items?.map((grant: any) => (
+          {/* Results */}
+          <div className={`space-y-3 transition-opacity ${isPreviousData ? 'opacity-50' : ''}`}>
+            {isLoading ? (
+              [...Array(5)].map((_, i) => (
+                <div key={i} className="bg-white rounded-xl border border-gray-100 h-32 animate-pulse" />
+              ))
+            ) : data?.items?.length === 0 ? (
+              <div className="text-center py-20 text-gray-400">
+                <p className="font-medium text-gray-500">No grants found</p>
+                <p className="text-sm mt-1">Try clearing some filters</p>
+                {hasFilters && (
+                  <button onClick={clearAll} className="mt-3 text-sm text-emerald-600 hover:text-emerald-700">
+                    Clear filters
+                  </button>
+                )}
+              </div>
+            ) : (
+              data?.items?.map((grant: any) => (
                 <GrantCard key={grant.id} grant={grant} />
-              ))}
-            </div>
-          )}
+              ))
+            )}
+          </div>
 
           {/* Pagination */}
           {totalPages > 1 && (
@@ -199,18 +287,18 @@ export default function BrowsePage() {
               <button
                 onClick={() => setPage(p => Math.max(1, p - 1))}
                 disabled={page === 1}
-                className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 disabled:opacity-40 hover:bg-gray-50"
-              >
-                ← Prev
-              </button>
-              <span className="text-sm text-gray-600">Page {page} of {totalPages}</span>
+                className="px-3 py-1.5 text-sm rounded-lg border border-gray-200
+                           disabled:opacity-40 hover:bg-gray-50"
+              >← Prev</button>
+              <span className="text-sm text-gray-500">
+                {page} / {totalPages}
+              </span>
               <button
                 onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                 disabled={page === totalPages}
-                className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 disabled:opacity-40 hover:bg-gray-50"
-              >
-                Next →
-              </button>
+                className="px-3 py-1.5 text-sm rounded-lg border border-gray-200
+                           disabled:opacity-40 hover:bg-gray-50"
+              >Next →</button>
             </div>
           )}
         </div>

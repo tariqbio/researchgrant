@@ -260,3 +260,24 @@ END:VCALENDAR"""
             "Content-Disposition": f'attachment; filename="grant-deadline-{grant_id}.ics"'
         },
     )
+
+
+# ── Public stats endpoint ─────────────────────────────────────────────────────
+
+@router.get("/stats/summary")
+def get_stats(db: Session = Depends(get_db)):
+    """Live platform stats for homepage and dashboard counters."""
+    from datetime import timedelta
+    total_published = db.query(Grant).filter(Grant.status == "published").count()
+    expiring_soon   = db.query(Grant).filter(
+        Grant.status == "published",
+        Grant.deadline >= date.today(),
+        Grant.deadline <= date.today() + timedelta(days=30),
+    ).count()
+    from app.models.user import User as UserModel
+    total_users = db.query(UserModel).filter(UserModel.is_admin == False).count()
+    return {
+        "total_grants":   total_published,
+        "expiring_soon":  expiring_soon,
+        "total_users":    total_users,
+    }

@@ -13,21 +13,23 @@ FROM python:3.11-slim
 WORKDIR /app/backend
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl libpq-dev gcc \
+    curl \
+    libpq-dev \
+    gcc \
     && rm -rf /var/lib/apt/lists/*
 
+# Install Python deps (cached unless requirements.txt changes)
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Copy backend source
 COPY backend/ .
+
+# Copy built React frontend — FastAPI serves this as the SPA
 COPY --from=frontend-build /app/frontend/dist ./static/
 
 ENV PORT=8000
 EXPOSE 8000
 
-# 1. Run DB migrations
-# 2. Seed admin user if ADMIN_EMAIL + ADMIN_PASSWORD are set
-# 3. Start server
-CMD alembic upgrade head && \
-    python -m app.core.seed_admin && \
-    uvicorn app.main:app --host 0.0.0.0 --port $PORT
+# Startup: wait for DB → migrate → seed admin → start server
+CMD ["python", "start.sh"]

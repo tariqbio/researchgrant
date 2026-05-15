@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../hooks/useAuth'
 import { userApi } from '../../api'
+import { apiClient } from '../../api/client'
 import { RESEARCH_AREAS, ELIGIBILITY_TYPES } from '../../types'
 import { slugToLabel } from '../../utils'
+import { useToast } from '../../components/ui/Toast'
 
 type Tab = 'profile' | 'alerts'
 
@@ -275,6 +277,70 @@ export default function ProfilePage() {
           {saved && <span className="text-sm text-emerald-600 ml-3">✓ Saved</span>}
         </div>
       )}
+
+      {/* ── Password change ───────────────────────────────────────────── */}
+      <PasswordSection />
+    </div>
+  )
+}
+
+function PasswordSection() {
+  const { toast } = useToast()
+  const [current, setCurrent]   = useState('')
+  const [next, setNext]         = useState('')
+  const [confirm, setConfirm]   = useState('')
+  const [saving, setSaving]     = useState(false)
+  const [error, setError]       = useState('')
+
+  const handleChange = async () => {
+    setError('')
+    if (!current || !next) return setError('All fields are required')
+    if (next.length < 8)   return setError('New password must be at least 8 characters')
+    if (next !== confirm)  return setError('Passwords do not match')
+    setSaving(true)
+    try {
+      await apiClient.post('/users/me/change-password', {
+        current_password: current, new_password: next
+      })
+      toast('Password changed successfully', 'success')
+      setCurrent(''); setNext(''); setConfirm('')
+    } catch (e: any) {
+      setError(e.response?.data?.detail || 'Failed to change password')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 p-5">
+      <h3 className="text-sm font-semibold text-gray-900 mb-4">Change Password</h3>
+      <div className="space-y-3 max-w-sm">
+        {[
+          { label: 'Current password', value: current, set: setCurrent },
+          { label: 'New password',     value: next,    set: setNext },
+          { label: 'Confirm new',      value: confirm, set: setConfirm },
+        ].map(field => (
+          <div key={field.label}>
+            <label className="block text-xs text-gray-500 mb-1">{field.label}</label>
+            <input
+              type="password"
+              value={field.value}
+              onChange={e => field.set(e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm
+                         focus:outline-none focus:ring-2 focus:ring-emerald-400"
+            />
+          </div>
+        ))}
+        {error && <p className="text-xs text-red-600">{error}</p>}
+        <button
+          onClick={handleChange}
+          disabled={saving}
+          className="bg-gray-900 text-white text-sm px-4 py-2 rounded-lg
+                     hover:bg-gray-700 disabled:opacity-50 transition-colors"
+        >
+          {saving ? 'Saving…' : 'Update password'}
+        </button>
+      </div>
     </div>
   )
 }

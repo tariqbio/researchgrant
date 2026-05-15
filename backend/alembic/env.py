@@ -8,12 +8,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from app.core.config import settings
 from app.db.session import Base
-from app.models.user import User
-from app.models.grant import Grant
-from app.models.pipeline import Source, IngestionJob, Watchlist, AlertLog, CommunitySubmission
+from app.models import User, Grant, IngestionJob, Source, CommunitySubmission, Watchlist, AlertLog  # noqa
 
 config = context.config
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+
+# Use db_url (with postgres:// fix applied) — not settings.DATABASE_URL directly
+config.set_main_option("sqlalchemy.url", settings.db_url)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)

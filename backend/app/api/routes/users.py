@@ -24,3 +24,27 @@ def update_me(
     db.commit()
     db.refresh(current_user)
     return current_user
+
+
+# ── Change password ────────────────────────────────────────────────────────────
+
+from pydantic import BaseModel as PydanticBase
+
+class PasswordChangeRequest(PydanticBase):
+    current_password: str
+    new_password: str
+
+
+@router.post("/me/change-password", status_code=204)
+def change_password(
+    payload: PasswordChangeRequest,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    from app.core.security import verify_password, hash_password
+    if not verify_password(payload.current_password, current_user.hashed_password):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    if len(payload.new_password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    current_user.hashed_password = hash_password(payload.new_password)
+    db.commit()

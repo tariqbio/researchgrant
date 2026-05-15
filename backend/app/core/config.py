@@ -1,5 +1,17 @@
+import os
 from pydantic_settings import BaseSettings
 from typing import List
+
+
+def fix_db_url(url: str) -> str:
+    """
+    Railway (and some other hosts) inject DATABASE_URL with the
+    'postgres://' scheme. SQLAlchemy 2.x only accepts 'postgresql://'.
+    This silently fixes it so the app works without any manual env-var editing.
+    """
+    if url.startswith("postgres://"):
+        url = "postgresql://" + url[len("postgres://"):]
+    return url
 
 
 class Settings(BaseSettings):
@@ -12,7 +24,7 @@ class Settings(BaseSettings):
 
     ANTHROPIC_API_KEY: str = ""
     GOOGLE_APPLICATION_CREDENTIALS: str = ""
-    GOOGLE_VISION_CREDENTIALS: str = ""   # base64-encoded service account JSON
+    GOOGLE_VISION_CREDENTIALS: str = ""
 
     SENDGRID_API_KEY: str = ""
     EMAIL_FROM: str = "alerts@grantbd.com"
@@ -21,14 +33,16 @@ class Settings(BaseSettings):
     STORAGE_BACKEND: str = "local"
     STORAGE_LOCAL_PATH: str = "/tmp/grantbd_uploads"
 
-    # In production set to your Railway domain, e.g.:
-    # ALLOWED_ORIGINS=["https://grantbd-production.up.railway.app"]
-    # Leave as ["*"] and Railway handles HTTPS — fine for v1
     ALLOWED_ORIGINS: List[str] = ["*"]
 
     class Config:
         env_file = ".env"
         case_sensitive = True
+
+    @property
+    def db_url(self) -> str:
+        """Always use this instead of DATABASE_URL directly."""
+        return fix_db_url(self.DATABASE_URL)
 
 
 settings = Settings()

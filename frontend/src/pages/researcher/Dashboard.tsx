@@ -1,131 +1,177 @@
 import { Link } from 'react-router-dom'
+import { useQuery } from 'react-query'
 import { useAuth } from '../../hooks/useAuth'
 import { useGrants, useWatchlist } from '../../hooks/useGrants'
+import { apiClient } from '../../api/client'
 import GrantCard from '../../components/grants/GrantCard'
-import { formatDeadline, deadlineDaysLeft, deadlineUrgency } from '../../utils'
+import { deadlineDaysLeft } from '../../utils'
+
+function greeting(name: string) {
+  const h = new Date().getHours()
+  const prefix = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'
+  return `${prefix}, ${name.split(' ')[0]}`
+}
+
+function StatCard({ value, label, to }: { value: string | number; label: string; to?: string }) {
+  const inner = (
+    <div className="bg-white border border-gray-100 rounded-xl px-4 py-3 text-center hover:border-gray-200 transition-colors">
+      <p className="text-2xl font-semibold text-gray-900">{value}</p>
+      <p className="text-xs text-gray-400 mt-0.5">{label}</p>
+    </div>
+  )
+  return to ? <Link to={to}>{inner}</Link> : inner
+}
 
 export default function DashboardPage() {
   const { user } = useAuth()
 
   const { data: matchedGrants } = useGrants({
-    research_areas: user?.research_interests.join(','),
+    research_areas: user?.research_interests?.join(','),
     sort_by: 'deadline',
-    page_size: 3,
+    page_size: 6,
   })
 
   const { data: watchlist } = useWatchlist()
 
+  // Live platform stats
+  const { data: stats } = useQuery('platform-stats', async () => {
+    const res = await apiClient.get('/grants/stats/summary')
+    return res.data
+  }, { staleTime: 60_000 })
+
   const noInterests = !user?.research_interests?.length
+
+  // Watchlist urgency — how many expiring within 7 days
+  const urgentCount = watchlist?.items?.filter((g: any) => {
+    const d = deadlineDaysLeft(g.deadline)
+    return d !== null && d >= 0 && d <= 7
+  }).length ?? 0
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 space-y-5">
 
       {/* Profile nudge */}
       {noInterests && (
-        <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 flex items-center justify-between gap-4">
-          <p className="text-sm text-blue-800">
-            <strong className="font-medium">Complete your profile</strong> — add research interests to receive matched grant alerts by email.
+        <div className="bg-amber-50 border border-amber-100 rounded-xl px-4 py-3
+                        flex items-center justify-between gap-4">
+          <p className="text-sm text-amber-800">
+            <strong className="font-medium">Set your research interests</strong> — we'll email you
+            the moment a matching grant is published.
           </p>
           <Link
             to="/profile"
-            className="flex-shrink-0 text-sm bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition-colors"
+            className="flex-shrink-0 text-sm bg-amber-500 text-white px-3 py-1.5 rounded-lg hover:bg-amber-600"
           >
-            Set interests
+            Set up now →
           </Link>
         </div>
       )}
 
-      {/* Welcome + stats row */}
+      {/* Greeting + action */}
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-lg font-medium text-gray-900">
-            Good morning, {user?.full_name.split(' ')[0]}
+            {greeting(user?.full_name ?? 'Researcher')}
           </h1>
           <p className="text-sm text-gray-400 mt-0.5">
-            {matchedGrants?.total
-              ? `${matchedGrants.total} grants match your interests`
-              : 'Browse all available grants below'}
+            {noInterests
+              ? 'Add interests to see matched grants here'
+              : matchedGrants?.total
+              ? `${matchedGrants.total} grant${matchedGrants.total === 1 ? '' : 's'} match your interests`
+              : 'No matches yet — we'll alert you when they appear'}
           </p>
         </div>
         <Link
           to="/grants"
-          className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 text-gray-600 hover:bg-gray-50 transition-colors"
+          className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 text-gray-600 hover:bg-gray-50"
         >
-          Search grants →
+          Browse all →
         </Link>
       </div>
 
-      {/* Stats strip */}
+      {/* Stats strip — all live from API */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {[
-          { label: 'New matches', value: matchedGrants?.total ?? '—', sub: 'Based on your interests' },
-          { label: 'Watchlist', value: watchlist?.total ?? 0, sub: 'Saved grants' },
-          { label: 'Grants live', value: '143', sub: 'Updated today' },
-          { label: 'Expiring soon', value: '12', sub: 'Within 30 days', warn: true },
-        ].map(stat => (
-          <div key={stat.label} className="bg-gray-50 rounded-xl px-4 py-3">
-            <p className="text-xs text-gray-400 mb-1">{stat.label}</p>
-            <p className={`text-xl font-medium ${stat.warn ? 'text-amber-600' : 'text-gray-900'}`}>{stat.value}</p>
-            <p className="text-[11px] text-gray-400 mt-0.5">{stat.sub}</p>
-          </div>
-        ))}
+        <StatCard
+          value={stats?.total_grants ?? '—'}
+          label="Active grants"
+          to="/grants"
+        />
+        <StatCard
+          value={stats?.expiring_soon ?? '—'}
+          label="Closing in 30 days"
+          to="/grants?deadline=30"
+        />
+        <StatCard
+          value={watchlist?.items?.length ?? '—'}
+          label="Watchlisted"
+          to="/watchlist"
+        />
+        <StatCard
+          value={urgentCount || '—'}
+          label="Urgent (≤7 days)"
+          to="/watchlist"
+        />
       </div>
 
-      {/* Two column */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-
-        {/* Matched grants */}
-        <div className="lg:col-span-2 space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-medium text-gray-900">Matched for you</h2>
-            <Link to="/grants" className="text-xs text-emerald-600 hover:text-emerald-700">Browse all →</Link>
+      {/* Matched grants */}
+      {!noInterests && (
+        <section>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-gray-900">Matched to your interests</h2>
+            <Link to="/grants" className="text-xs text-emerald-600 hover:text-emerald-700">
+              Browse all →
+            </Link>
           </div>
-          {matchedGrants?.items.length ? (
-            matchedGrants.items.map(grant => (
-              <GrantCard key={grant.id} grant={grant} showMatchBadge />
-            ))
+          {matchedGrants?.items?.length === 0 ? (
+            <div className="bg-gray-50 rounded-xl py-10 text-center border border-dashed border-gray-200">
+              <p className="text-sm text-gray-400">No grants match your interests yet</p>
+              <p className="text-xs text-gray-300 mt-1">We'll email you as soon as one appears</p>
+            </div>
           ) : (
-            <div className="bg-gray-50 rounded-xl px-4 py-8 text-center text-sm text-gray-400">
-              {noInterests
-                ? 'Set your research interests to see matched grants here.'
-                : 'No matched grants found. Try broadening your interests.'}
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+              {matchedGrants?.items?.map((g: any) => (
+                <GrantCard key={g.id} grant={g} showMatchBadge />
+              ))}
             </div>
           )}
-        </div>
+        </section>
+      )}
 
-        {/* Watchlist deadlines */}
-        <div>
+      {/* Watchlist preview */}
+      {(watchlist?.items?.length ?? 0) > 0 && (
+        <section>
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-medium text-gray-900">Watchlist deadlines</h2>
-            <Link to="/watchlist" className="text-xs text-emerald-600 hover:text-emerald-700">View all →</Link>
+            <h2 className="text-sm font-semibold text-gray-900">Your watchlist</h2>
+            <Link to="/watchlist" className="text-xs text-emerald-600 hover:text-emerald-700">
+              View all →
+            </Link>
           </div>
-          <div className="bg-white border border-gray-100 rounded-xl divide-y divide-gray-50">
-            {watchlist?.items.length ? (
-              watchlist.items.slice(0, 6).map(grant => {
-                const days = deadlineDaysLeft(grant.deadline)
-                const urgency = deadlineUrgency(days)
-                const color = urgency === 'urgent' ? 'text-red-600' : urgency === 'soon' ? 'text-amber-600' : 'text-green-600'
-                return (
-                  <div key={grant.id} className="flex items-center gap-3 px-4 py-3">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium text-gray-900 truncate">{grant.title_en}</p>
-                      <p className="text-[11px] text-gray-400 mt-0.5">{grant.issuing_agency}</p>
-                    </div>
-                    <span className={`text-xs font-medium flex-shrink-0 ${color}`}>
-                      {days !== null ? `${days}d` : '—'}
-                    </span>
-                  </div>
-                )
-              })
-            ) : (
-              <div className="px-4 py-8 text-center text-sm text-gray-400">
-                No saved grants yet.{' '}
-                <Link to="/grants" className="text-emerald-600">Browse →</Link>
-              </div>
-            )}
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+            {watchlist.items.slice(0, 3).map((g: any) => (
+              <GrantCard key={g.id} grant={g} />
+            ))}
           </div>
-        </div>
-      </div>
+        </section>
+      )}
+
+      {/* Quick actions */}
+      <section className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <Link to="/grants" className="bg-white border border-gray-100 rounded-xl p-4 hover:border-emerald-200 hover:bg-emerald-50 transition-colors group">
+          <p className="text-xl mb-1">🔍</p>
+          <p className="text-sm font-medium text-gray-900 group-hover:text-emerald-700">Browse grants</p>
+          <p className="text-xs text-gray-400">Search by area, agency, deadline</p>
+        </Link>
+        <Link to="/profile" className="bg-white border border-gray-100 rounded-xl p-4 hover:border-blue-200 hover:bg-blue-50 transition-colors group">
+          <p className="text-xl mb-1">🎯</p>
+          <p className="text-sm font-medium text-gray-900 group-hover:text-blue-700">Alert settings</p>
+          <p className="text-xs text-gray-400">Update your research interests</p>
+        </Link>
+        <Link to="/submit-grant" className="bg-white border border-gray-100 rounded-xl p-4 hover:border-purple-200 hover:bg-purple-50 transition-colors group">
+          <p className="text-xl mb-1">📤</p>
+          <p className="text-sm font-medium text-gray-900 group-hover:text-purple-700">Submit a grant</p>
+          <p className="text-xs text-gray-400">Found one we missed? Share it</p>
+        </Link>
+      </section>
     </div>
   )
 }

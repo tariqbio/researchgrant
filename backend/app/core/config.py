@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "change-this-in-production-min-32-chars"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7   # 7 days
 
-    DATABASE_URL: str = "postgresql://postgres:password@localhost:5432/grantbd"
+    DATABASE_URL: str = ""
 
     ANTHROPIC_API_KEY: str = ""
     GOOGLE_APPLICATION_CREDENTIALS: str = ""
@@ -42,7 +42,11 @@ class Settings(BaseSettings):
     @property
     def db_url(self) -> str:
         """Always use this instead of DATABASE_URL directly."""
-        return fix_db_url(self.DATABASE_URL)
+        if self.DATABASE_URL:
+            return fix_db_url(self.DATABASE_URL)
+        if self.ENVIRONMENT == "production":
+            raise ValueError("DATABASE_URL is required when ENVIRONMENT=production")
+        return "postgresql://postgres:password@localhost:5432/grantbd"
 
 
 settings = Settings()

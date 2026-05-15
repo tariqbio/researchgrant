@@ -1,5 +1,6 @@
 import os
 import sys
+from urllib.parse import urlparse
 from logging.config import fileConfig
 from sqlalchemy import engine_from_config, pool
 from alembic import context
@@ -48,7 +49,8 @@ def run_migrations_offline() -> None:
 def run_migrations_online() -> None:
     # Use connect_args for SSL on cloud DBs
     connect_args = {}
-    if "localhost" not in db_url and "127.0.0.1" not in db_url:
+    host = urlparse(db_url).hostname or ""
+    if host not in {"localhost", "127.0.0.1"}:
         connect_args["sslmode"] = "require"
 
     connectable = engine_from_config(

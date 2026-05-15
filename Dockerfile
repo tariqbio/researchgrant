@@ -1,14 +1,14 @@
-# ── Stage 1: Build React frontend ─────────────────────────────────────────────
+# Stage 1: build React frontend
 FROM node:20-slim AS frontend-build
 WORKDIR /app
 
 COPY frontend/package*.json ./frontend/
-RUN npm install --prefix frontend --silent
+RUN npm ci --prefix frontend --silent --no-audit --no-fund
 
 COPY frontend/ ./frontend/
 RUN npm run build --prefix frontend
 
-# ── Stage 2: Python runtime ────────────────────────────────────────────────────
+# Stage 2: Python runtime
 FROM python:3.11-slim
 WORKDIR /app/backend
 
@@ -28,5 +28,5 @@ COPY --from=frontend-build /app/frontend/dist ./static/
 ENV PORT=8000
 EXPOSE 8000
 
-# Use shell form so PATH is resolved properly
+# Use shell form so PATH is resolved properly.
 CMD python start.sh

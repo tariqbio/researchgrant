@@ -29,26 +29,27 @@ grantbd/
 
 ## Deploy to Render (step by step)
 
-**The most common failure cause: DATABASE_URL not set before deploy.**
-Follow this order exactly.
+**The most common failure cause is a missing `DATABASE_URL`.**
+This package now supports both Render Blueprint deploys and manual web-service deploys.
 
-### 1. Create PostgreSQL database first
-- Render dashboard → New → PostgreSQL
-- Name: `grantbd-db`, Plan: Free
-- Wait for it to show "Available"
-- Copy the **Internal Database URL** (starts with `postgresql://`)
+### Option A: Blueprint deploy from `render.yaml`
+- Create a new Render Blueprint from this repo.
+- The included `render.yaml` creates `grantbd-db` and wires its internal connection string into `DATABASE_URL`.
+- Render will ask you for `ADMIN_EMAIL`, `ADMIN_PASSWORD`, and optional API keys.
 
-### 2. Create the web service
+### Option B: Manual web-service deploy
+- Create PostgreSQL first: Render dashboard → New → PostgreSQL.
+- Copy the **Internal Database URL** from the database page.
 - New → Web Service → Connect your GitHub repo
-- Runtime: **Docker** (Render reads the Dockerfile automatically)
+- Runtime: **Docker**
 - Do NOT click Deploy yet
 
-### 3. Set environment variables
+Then set environment variables:
 Go to Environment tab and add:
 
 | Key | Value |
 |---|---|
-| `DATABASE_URL` | Paste the Internal Database URL from step 1 |
+| `DATABASE_URL` | Paste the Render Postgres Internal Database URL |
 | `SECRET_KEY` | Any random 32-char string |
 | `ADMIN_EMAIL` | Your admin login email |
 | `ADMIN_PASSWORD` | Your admin login password |
@@ -62,7 +63,7 @@ Optional (add later):
 | `SENDGRID_API_KEY` | From sendgrid.com (free: 100 emails/day) |
 | `SENDGRID_FROM_EMAIL` | Your verified sender address |
 
-### 4. Deploy
+### Deploy
 Click **Save Changes** → **Manual Deploy**.
 
 The startup script (`start.sh`) will:
@@ -135,12 +136,12 @@ GET  /api/grants/public          Browse grants (no auth)
 GET  /api/grants/stats/summary   Live platform stats
 GET  /api/grants                 Browse with watchlist flags (auth)
 POST /api/grants/{id}/watchlist  Toggle watchlist
-GET  /api/grants/{id}/calendar   Download .ics calendar event
+GET  /api/grants/{id}/calendar.ics  Download .ics calendar event
 POST /api/pipeline/upload        Admin: upload PDF
 GET  /api/pipeline/jobs/{id}     Poll job status
 POST /api/pipeline/submit        Submit grant URL (researcher)
 POST /api/grants/admin/create    Admin: manual grant entry
 POST /api/grants/admin/{id}/action  Approve or reject grant
 POST /api/users/me/change-password  Change password
-GET  /api/health                 Health check
+GET  /health                     Health check
 ```

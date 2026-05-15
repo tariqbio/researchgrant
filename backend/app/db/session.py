@@ -1,4 +1,5 @@
 import os
+from urllib.parse import urlparse
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
@@ -10,11 +11,21 @@ def fix_url(url: str) -> str:
     return url
 
 
-_raw_url = os.environ.get("DATABASE_URL", "postgresql://postgres:password@localhost:5432/grantbd")
+_raw_url = os.environ.get("DATABASE_URL")
+if not _raw_url:
+    if (
+        os.environ.get("ENVIRONMENT") == "production"
+        or os.environ.get("RENDER")
+        or os.environ.get("RAILWAY_ENVIRONMENT")
+    ):
+        raise RuntimeError("DATABASE_URL is required in production")
+    _raw_url = "postgresql://postgres:password@localhost:5432/grantbd"
+
 DATABASE_URL = fix_url(_raw_url)
 
 # SSL required for Railway/Render cloud PostgreSQL
-_is_cloud = "localhost" not in DATABASE_URL and "127.0.0.1" not in DATABASE_URL
+_host = urlparse(DATABASE_URL).hostname or ""
+_is_cloud = _host not in {"localhost", "127.0.0.1"}
 _connect_args = {"sslmode": "require"} if _is_cloud else {}
 
 engine = create_engine(

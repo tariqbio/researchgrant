@@ -2,15 +2,17 @@ services:
   - type: web
     name: grantbd
     runtime: docker
+    plan: free
     dockerfilePath: ./Dockerfile
-    # Render free tier sleeps after 15min inactivity — acceptable for v1
+    dockerCommand: python start.sh
+    healthCheckPath: /health
+    # Render free tier sleeps after inactivity, which is acceptable for v1.
     envVars:
-      # ── Required ──────────────────────────────────────────────────────────
+      # Required
       - key: DATABASE_URL
-        # On Render: create a PostgreSQL database first, then copy its
-        # "Internal Connection String" here. It looks like:
-        # postgresql://grantbd_user:password@dpg-xxxxx-a/grantbd
-        sync: false
+        fromDatabase:
+          name: grantbd-db
+          property: connectionString
 
       - key: SECRET_KEY
         # Any random 32+ character string. Generate with:
@@ -25,7 +27,7 @@ services:
         # Your admin login password
         sync: false
 
-      # ── API Keys (add after first successful deploy) ───────────────────
+      # API keys can be added after the first successful deploy.
       - key: ANTHROPIC_API_KEY
         sync: false
 

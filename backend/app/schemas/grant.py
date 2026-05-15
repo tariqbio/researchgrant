@@ -52,6 +52,7 @@ class GrantOut(GrantBase):
     id: UUID
     status: str
     ai_confidence_score: Optional[float]
+    ai_extracted_fields: Optional[Dict[str, Any]] = None
     published_at: Optional[datetime]
     created_at: datetime
     days_until_deadline: Optional[int] = None

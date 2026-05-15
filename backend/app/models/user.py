@@ -30,4 +30,8 @@ class User(Base):
     # Relationships
     watchlist = relationship("Watchlist", back_populates="user", cascade="all, delete-orphan")
     alert_logs = relationship("AlertLog", back_populates="user")
-    submissions = relationship("CommunitySubmission", back_populates="submitted_by_user")
+    submissions = relationship(
+        "CommunitySubmission",
+        foreign_keys="CommunitySubmission.submitted_by",
+        back_populates="submitted_by_user",
+    )

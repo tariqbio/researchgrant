@@ -19,7 +19,7 @@ export interface Grant {
   title_bn: string | null
   issuing_agency: string
   agency_type: string | null
-  deadline: string | null          // ISO date string
+  deadline: string | null
   published_at: string | null
   funding_min: number | null
   funding_max: number | null
@@ -31,6 +31,8 @@ export interface Grant {
   source_url: string | null
   status: GrantStatus
   ai_confidence_score: number | null
+  ai_extracted_fields: Record<string, number> | null
+  created_at: string | null
   days_until_deadline: number | null
   is_watchlisted: boolean | null
   match_reasons: string[] | null

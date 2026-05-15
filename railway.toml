@@ -1,7 +1,9 @@
 [build]
 builder = "dockerfile"
+dockerfilePath = "Dockerfile"
 
 [deploy]
+startCommand = "python start.sh"
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
 
@@ -9,4 +11,4 @@ restartPolicyMaxRetries = 3
 type = "http"
 path = "/health"
 intervalSeconds = 30
-timeoutSeconds = 10
+timeoutSeconds = 15

@@ -78,7 +78,7 @@ export default function DashboardPage() {
               ? 'Add interests to see matched grants here'
               : matchedGrants?.total
               ? `${matchedGrants.total} grant${matchedGrants.total === 1 ? '' : 's'} match your interests`
-              : 'No matches yet — we'll alert you when they appear'}
+              : "No matches yet — we'll alert you when they appear"}
           </p>
         </div>
         <Link
@@ -147,7 +147,7 @@ export default function DashboardPage() {
             </Link>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-            {watchlist.items.slice(0, 3).map((g: any) => (
+            {watchlist?.items?.slice(0, 3)?.map((g: any) => (
               <GrantCard key={g.id} grant={g} />
             ))}
           </div>

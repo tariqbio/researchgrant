@@ -1,14 +1,28 @@
+import os
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-from app.core.config import settings
 
-# Use settings.db_url (not settings.DATABASE_URL) so postgres:// is auto-fixed
+def fix_url(url: str) -> str:
+    if url.startswith("postgres://"):
+        return "postgresql://" + url[len("postgres://"):]
+    return url
+
+
+_raw_url = os.environ.get("DATABASE_URL", "postgresql://postgres:password@localhost:5432/grantbd")
+DATABASE_URL = fix_url(_raw_url)
+
+# SSL required for Railway/Render cloud PostgreSQL
+_is_cloud = "localhost" not in DATABASE_URL and "127.0.0.1" not in DATABASE_URL
+_connect_args = {"sslmode": "require"} if _is_cloud else {}
+
 engine = create_engine(
-    settings.db_url,
-    pool_pre_ping=True,   # detects stale connections before using them
-    pool_recycle=300,     # recycle connections every 5 min (avoids Railway idle timeout)
+    DATABASE_URL,
+    pool_pre_ping=True,
+    pool_size=5,
+    max_overflow=10,
+    connect_args=_connect_args,
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

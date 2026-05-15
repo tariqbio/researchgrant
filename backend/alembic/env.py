@@ -13,23 +13,16 @@ def fix_url(url: str) -> str:
     return url
 
 
-# ── Detect misconfigured DATABASE_URL before doing anything ──────────────────
 raw_url = os.environ.get("DATABASE_URL", "")
 db_url  = fix_url(raw_url)
 
-if not db_url or "localhost" in db_url or "127.0.0.1" in db_url:
-    print("\n" + "="*60, flush=True)
-    print("  MIGRATION ABORTED — DATABASE_URL is not configured", flush=True)
-    print("="*60, flush=True)
-    print(f"\n  Current value: '{db_url or '(empty)'}'", flush=True)
-    print("\n  Fix:", flush=True)
-    print("  On Render:  Environment tab → add DATABASE_URL", flush=True)
-    print("              (use Internal Connection String from your Render PostgreSQL)", flush=True)
-    print("  On Railway: Add a PostgreSQL plugin — injected automatically\n", flush=True)
+if not db_url:
+    print("✗ MIGRATION ABORTED: DATABASE_URL is not set.", flush=True)
     sys.exit(1)
 
+# Import models AFTER fixing URL so Base.metadata is populated
 from app.db.session import Base
-from app.models import User, Grant, IngestionJob, Source, CommunitySubmission, Watchlist, AlertLog  # noqa
+from app.models import User, Grant, Source, IngestionJob, Watchlist, AlertLog, CommunitySubmission  # noqa
 
 config = context.config
 config.set_main_option("sqlalchemy.url", db_url)
@@ -41,9 +34,8 @@ target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
-    url = config.get_main_option("sqlalchemy.url")
     context.configure(
-        url=url,
+        url=db_url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -54,10 +46,16 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
+    # Use connect_args for SSL on cloud DBs
+    connect_args = {}
+    if "localhost" not in db_url and "127.0.0.1" not in db_url:
+        connect_args["sslmode"] = "require"
+
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        connect_args=connect_args,
     )
     with connectable.connect() as connection:
         context.configure(

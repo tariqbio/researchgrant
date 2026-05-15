@@ -114,3 +114,47 @@ def init_admin(db: Session = Depends(get_db)):
         )
     user = ensure_admin_exists(db, admin_email, admin_password)
     return {"status": "ok", "email": user.email, "is_admin": user.is_admin}
+
+
+@router.post("/setup")
+def first_time_setup(
+    payload: UserCreate,
+    db: Session = Depends(get_db),
+):
+    """
+    Creates the FIRST admin account. Only works if ZERO users exist in the DB.
+    After the first admin is created, this endpoint returns 403 forever.
+    No auth required — this is for initial deployment setup only.
+    """
+    user_count = db.query(User).count()
+    if user_count > 0:
+        raise HTTPException(
+            status_code=403,
+            detail="Setup already complete. Use /login to sign in."
+        )
+
+    email = str(payload.email).strip().lower()
+    user = User(
+        email=email,
+        hashed_password=hash_password(payload.password),
+        full_name=payload.full_name,
+        is_admin=True,
+        is_verified=True,
+        email_alerts_enabled=False,
+        research_interests=[],
+        preferred_language="en",
+    )
+    db.add(user)
+    db.commit()
+    db.expire_all()
+    db.refresh(user)
+
+    token = create_access_token(str(user.id))
+    return TokenResponse(access_token=token, user=UserOut.model_validate(user))
+
+
+@router.get("/setup/status")
+def setup_status(db: Session = Depends(get_db)):
+    """Returns whether initial setup is needed. Used by the login page."""
+    count = db.query(User).count()
+    return {"needs_setup": count == 0}

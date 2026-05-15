@@ -2,6 +2,52 @@ import { useState, FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 
+function PasswordField({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string
+  onChange: (value: string) => void
+  placeholder?: string
+}) {
+  const [visible, setVisible] = useState(false)
+
+  return (
+    <div className="relative">
+      <input
+        type={visible ? 'text' : 'password'}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        required
+        placeholder={placeholder}
+        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 pr-10 outline-none focus:border-emerald-400 transition-colors"
+      />
+      <button
+        type="button"
+        onClick={() => setVisible(v => !v)}
+        className="absolute inset-y-0 right-0 px-3 text-gray-400 hover:text-gray-700"
+        aria-label={visible ? 'Hide password' : 'Show password'}
+        title={visible ? 'Hide password' : 'Show password'}
+      >
+        {visible ? (
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 3l18 18" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10.58 10.58A2 2 0 0012 14a2 2 0 001.42-.58" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9.88 4.24A10.3 10.3 0 0112 4c5 0 8.5 3.6 10 8a13.4 13.4 0 01-3.18 4.72" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6.61 6.61A13.1 13.1 0 002 12c1.5 4.4 5 8 10 8 1.5 0 2.87-.32 4.08-.9" />
+          </svg>
+        ) : (
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+        )}
+      </button>
+    </div>
+  )
+}
+
 export function LoginPage() {
   const { login } = useAuth()
   const navigate = useNavigate()
@@ -17,8 +63,8 @@ export function LoginPage() {
     try {
       const user = await login(email, password)
       navigate(user.is_admin ? '/admin' : '/dashboard')
-    } catch {
-      setError('Invalid email or password.')
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Invalid email or password.')
     } finally {
       setLoading(false)
     }
@@ -46,13 +92,7 @@ export function LoginPage() {
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1.5">Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                required
-                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-emerald-400 transition-colors"
-              />
+              <PasswordField value={password} onChange={setPassword} />
             </div>
             {error && <p className="text-xs text-red-600">{error}</p>}
             <button
@@ -118,14 +158,22 @@ export function RegisterPage() {
             ].map(field => (
               <div key={field.key}>
                 <label className="block text-xs text-gray-500 mb-1.5">{field.label}</label>
-                <input
-                  type={field.type}
-                  value={(form as any)[field.key]}
-                  onChange={set(field.key)}
-                  placeholder={field.placeholder}
-                  required={field.key !== 'institution'}
-                  className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-emerald-400 transition-colors"
-                />
+                {field.key === 'password' ? (
+                  <PasswordField
+                    value={form.password}
+                    onChange={value => setForm(prev => ({ ...prev, password: value }))}
+                    placeholder={field.placeholder}
+                  />
+                ) : (
+                  <input
+                    type={field.type}
+                    value={(form as any)[field.key]}
+                    onChange={set(field.key)}
+                    placeholder={field.placeholder}
+                    required={field.key !== 'institution'}
+                    className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-emerald-400 transition-colors"
+                  />
+                )}
               </div>
             ))}
             {error && <p className="text-xs text-red-600">{error}</p>}

@@ -25,15 +25,19 @@ function StatCard({ value, label, to }: { value: string | number; label: string;
 export default function DashboardPage() {
   const { user } = useAuth()
 
-  const { data: matchedGrants } = useGrants({
-    research_areas: user?.research_interests?.join(','),
+  // research_areas expects string[] not a joined string
+  const { data: matchedGrantsRes } = useGrants({
+    areas: user?.research_interests ?? [],
     sort_by: 'deadline',
     page_size: 6,
   })
+  // useGrants returns the raw AxiosResponse — unwrap .data
+  const matchedGrants = (matchedGrantsRes as any)?.data
 
-  const { data: watchlist } = useWatchlist()
+  const { data: watchlistRes } = useWatchlist()
+  // useWatchlist returns raw AxiosResponse — unwrap .data
+  const watchlist = (watchlistRes as any)?.data
 
-  // Live platform stats
   const { data: stats } = useQuery('platform-stats', async () => {
     const res = await apiClient.get('/grants/stats/summary')
     return res.data
@@ -41,16 +45,14 @@ export default function DashboardPage() {
 
   const noInterests = !user?.research_interests?.length
 
-  // Watchlist urgency — how many expiring within 7 days
-  const urgentCount = watchlist?.items?.filter((g: any) => {
-    const d = deadlineDaysLeft(g.deadline)
+  const urgentCount = (watchlist?.items ?? []).filter((g: any) => {
+    const d = deadlineDaysLeft(g.deadline ?? null)
     return d !== null && d >= 0 && d <= 7
-  }).length ?? 0
+  }).length
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 space-y-5">
 
-      {/* Profile nudge */}
       {noInterests && (
         <div className="bg-amber-50 border border-amber-100 rounded-xl px-4 py-3
                         flex items-center justify-between gap-4">
@@ -67,7 +69,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Greeting + action */}
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-lg font-medium text-gray-900">
@@ -82,54 +83,34 @@ export default function DashboardPage() {
           </p>
         </div>
         <Link
-          to="/grants"
+          to="/browse"
           className="text-sm border border-gray-200 rounded-lg px-3 py-1.5 text-gray-600 hover:bg-gray-50"
         >
           Browse all →
         </Link>
       </div>
 
-      {/* Stats strip — all live from API */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard
-          value={stats?.total_grants ?? '—'}
-          label="Active grants"
-          to="/grants"
-        />
-        <StatCard
-          value={stats?.expiring_soon ?? '—'}
-          label="Closing in 30 days"
-          to="/grants?deadline=30"
-        />
-        <StatCard
-          value={watchlist?.items?.length ?? '—'}
-          label="Watchlisted"
-          to="/watchlist"
-        />
-        <StatCard
-          value={urgentCount || '—'}
-          label="Urgent (≤7 days)"
-          to="/watchlist"
-        />
+        <StatCard value={stats?.total_grants ?? '—'} label="Active grants" to="/browse" />
+        <StatCard value={stats?.expiring_soon ?? '—'} label="Closing in 30 days" to="/browse" />
+        <StatCard value={watchlist?.items?.length ?? '—'} label="Watchlisted" to="/watchlist" />
+        <StatCard value={urgentCount || '—'} label="Urgent (≤7 days)" to="/watchlist" />
       </div>
 
-      {/* Matched grants */}
       {!noInterests && (
         <section>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-semibold text-gray-900">Matched to your interests</h2>
-            <Link to="/grants" className="text-xs text-emerald-600 hover:text-emerald-700">
-              Browse all →
-            </Link>
+            <Link to="/browse" className="text-xs text-emerald-600 hover:text-emerald-700">Browse all →</Link>
           </div>
-          {matchedGrants?.items?.length === 0 ? (
+          {(matchedGrants?.items ?? []).length === 0 ? (
             <div className="bg-gray-50 rounded-xl py-10 text-center border border-dashed border-gray-200">
               <p className="text-sm text-gray-400">No grants match your interests yet</p>
               <p className="text-xs text-gray-300 mt-1">We'll email you as soon as one appears</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-              {matchedGrants?.items?.map((g: any) => (
+              {(matchedGrants?.items ?? []).map((g: any) => (
                 <GrantCard key={g.id} grant={g} showMatchBadge />
               ))}
             </div>
@@ -137,26 +118,22 @@ export default function DashboardPage() {
         </section>
       )}
 
-      {/* Watchlist preview */}
       {(watchlist?.items?.length ?? 0) > 0 && (
         <section>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-semibold text-gray-900">Your watchlist</h2>
-            <Link to="/watchlist" className="text-xs text-emerald-600 hover:text-emerald-700">
-              View all →
-            </Link>
+            <Link to="/watchlist" className="text-xs text-emerald-600 hover:text-emerald-700">View all →</Link>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-            {watchlist?.items?.slice(0, 3)?.map((g: any) => (
+            {(watchlist?.items ?? []).slice(0, 3).map((g: any) => (
               <GrantCard key={g.id} grant={g} />
             ))}
           </div>
         </section>
       )}
 
-      {/* Quick actions */}
       <section className="grid grid-cols-2 md:grid-cols-3 gap-3">
-        <Link to="/grants" className="bg-white border border-gray-100 rounded-xl p-4 hover:border-emerald-200 hover:bg-emerald-50 transition-colors group">
+        <Link to="/browse" className="bg-white border border-gray-100 rounded-xl p-4 hover:border-emerald-200 hover:bg-emerald-50 transition-colors group">
           <p className="text-xl mb-1">🔍</p>
           <p className="text-sm font-medium text-gray-900 group-hover:text-emerald-700">Browse grants</p>
           <p className="text-xs text-gray-400">Search by area, agency, deadline</p>
@@ -166,7 +143,7 @@ export default function DashboardPage() {
           <p className="text-sm font-medium text-gray-900 group-hover:text-blue-700">Alert settings</p>
           <p className="text-xs text-gray-400">Update your research interests</p>
         </Link>
-        <Link to="/submit-grant" className="bg-white border border-gray-100 rounded-xl p-4 hover:border-purple-200 hover:bg-purple-50 transition-colors group">
+        <Link to="/submit" className="bg-white border border-gray-100 rounded-xl p-4 hover:border-purple-200 hover:bg-purple-50 transition-colors group">
           <p className="text-xl mb-1">📤</p>
           <p className="text-sm font-medium text-gray-900 group-hover:text-purple-700">Submit a grant</p>
           <p className="text-xs text-gray-400">Found one we missed? Share it</p>

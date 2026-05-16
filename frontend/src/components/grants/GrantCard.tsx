@@ -5,7 +5,7 @@ import {
   formatDeadline, formatFunding, deadlineDaysLeft,
   deadlineUrgency, urgencyClasses, slugToLabel,
 } from '../../utils'
-import type { Grant } from '../../types'
+import type { GrantExtended as Grant } from '../../types'
 
 interface Props {
   grant: Grant
@@ -15,7 +15,7 @@ interface Props {
 export default function GrantCard({ grant, showMatchBadge = false }: Props) {
   const toggleWatchlist = useToggleWatchlist()
   const { toast } = useToast()
-  const days = deadlineDaysLeft(grant.deadline)
+  const days = deadlineDaysLeft(grant.deadline ?? null)
   const urgency = deadlineUrgency(days)
   const isExpired = days !== null && days < 0
 
@@ -121,7 +121,7 @@ export default function GrantCard({ grant, showMatchBadge = false }: Props) {
         )}
         {(grant.funding_min || grant.funding_max) && (
           <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
-            {formatFunding(grant.funding_min, grant.funding_max, grant.currency)}
+            {formatFunding(grant.funding_min ?? null, grant.funding_max ?? null, grant.currency)}
           </span>
         )}
       </div>

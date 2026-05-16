@@ -164,3 +164,49 @@ export const EXPENSE_CATEGORIES = [
   { slug: 'publication', label: 'Publication / Printing' },
   { slug: 'other', label: 'Other' },
 ];
+
+// Extended Grant fields used by older components (kept for compat)
+export interface GrantExtended extends Grant {
+  is_watchlisted?: boolean
+  match_reasons?: string[]
+  ai_extracted_fields?: Record<string, any>
+  created_at?: string
+}
+
+// IngestionJob type for UploadPdf page
+export interface IngestionJob {
+  id: string
+  job_status: string
+  raw_file_path?: string
+  raw_url?: string
+  ocr_confidence?: number
+  failure_reason?: string
+  created_at: string
+}
+
+// GrantSearchParams re-exported for convenience
+export interface GrantSearchParams {
+  q?: string
+  areas?: string[]
+  sort_by?: string
+  page?: number
+  page_size?: number
+}
+
+// ELIGIBILITY_TYPES map for Profile page
+export const ELIGIBILITY_TYPES: Record<string, string> = {
+  faculty: 'Faculty',
+  phd_student: 'PhD Student',
+  masters_student: "Master's Student",
+  undergraduate_student: 'Undergraduate Student',
+  postdoc: 'Postdoc',
+  scientist: 'Scientist',
+  researcher: 'Researcher',
+  ngo_worker: 'NGO Worker',
+  private_sector: 'Private Sector',
+}
+
+// Lookup map version of RESEARCH_AREAS for Profile page slug → label lookups
+export const RESEARCH_AREAS_MAP: Record<string, string> = Object.fromEntries(
+  RESEARCH_AREAS.map(a => [a.slug, a.label])
+)

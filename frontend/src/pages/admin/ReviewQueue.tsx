@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useReviewQueue, useApproveGrant, useRejectGrant } from '../../hooks/useGrants'
 import { useToast } from '../../components/ui/Toast'
 import { formatDeadline, formatFunding, slugToLabel } from '../../utils'
-import type { Grant } from '../../types'
+import type { GrantExtended as Grant } from '../../types'
 
 function ConfidencePill({ score }: { score: number | null }) {
   if (score === null) return <span className="text-xs text-gray-400">—</span>
@@ -75,7 +75,7 @@ function ReviewCard({ grant, index, total, onDone }: {
         <div className="flex items-center gap-3">
           <span className="text-xs text-gray-400">{index + 1} / {total}</span>
           <span className="text-sm font-semibold text-gray-900">{grant.issuing_agency || 'Unknown agency'}</span>
-          <ConfidencePill score={grant.ai_confidence_score} />
+          <ConfidencePill score={grant.ai_confidence_score ?? null} />
           {lowConf && (
             <span className="text-[11px] text-red-600 bg-red-50 px-2 py-0.5 rounded-full font-medium">
               ⚠ Low confidence — review carefully
@@ -107,7 +107,7 @@ function ReviewCard({ grant, index, total, onDone }: {
                    : null
                  } />
           <Field label="Funding" conf={fc('funding_max')}
-                 value={formatFunding(grant.funding_min, grant.funding_max, grant.currency)} />
+                 value={formatFunding(grant.funding_min ?? null, grant.funding_max ?? null, grant.currency)} />
         </div>
 
         {grant.description_en && (

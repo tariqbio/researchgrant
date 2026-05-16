@@ -121,7 +121,7 @@ export default function UploadPdfPage() {
           className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white outline-none focus:border-emerald-400"
         >
           <option value="">— Select source —</option>
-          {sources?.map(s => (
+          {(sources as any[] ?? []).map(s => (
             <option key={s.id} value={s.id}>{s.name}</option>
           ))}
         </select>

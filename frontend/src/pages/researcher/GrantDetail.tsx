@@ -1,5 +1,4 @@
 import { useParams, Link } from 'react-router-dom'
-import { Link } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { useGrant, useToggleWatchlist } from '../../hooks/useGrants'
 import { formatDeadline, formatFunding, deadlineDaysLeft, deadlineUrgency, urgencyClasses, slugToLabel } from '../../utils'
@@ -41,7 +40,7 @@ export default function GrantDetailPage() {
             {/* Agency */}
             <div className="flex items-center gap-2 mb-3">
               <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-[10px] font-bold text-blue-700 flex-shrink-0">
-                {grant.issuing_agency.split(' ').map(w => w[0]).join('').slice(0, 3)}
+                {grant.issuing_agency.split(' ').map((w: string) => w[0]).join('').slice(0, 3)}
               </div>
               <div>
                 <p className="text-xs font-medium text-gray-700">{grant.issuing_agency}</p>
@@ -69,7 +68,7 @@ export default function GrantDetailPage() {
                   {formatFunding(grant.funding_min, grant.funding_max, grant.currency)}
                 </span>
               )}
-              {grant.match_reasons && grant.match_reasons.length > 0 && (
+              {(grant as any).match_reasons && (grant as any).match_reasons.length > 0 && (
                 <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700">
                   ✓ Matches your profile
                 </span>
@@ -89,16 +88,16 @@ export default function GrantDetailPage() {
             {/* Research areas */}
             <p className="text-[11px] uppercase tracking-wide text-gray-400 font-medium mb-2">Research areas</p>
             <div className="flex flex-wrap gap-1.5 mb-4">
-              {grant.research_areas.map(area => (
+              {grant.research_areas.map((area: string) => (
                 <span
                   key={area}
                   className={`text-xs px-2.5 py-1 rounded-full ${
-                    grant.match_reasons?.includes(area)
+                    (grant as any).match_reasons?.includes(area)
                       ? 'bg-emerald-50 text-emerald-700 font-medium'
                       : 'bg-purple-50 text-purple-700'
                   }`}
                 >
-                  {grant.match_reasons?.includes(area) && '✓ '}{slugToLabel(area)}
+                  {(grant as any).match_reasons?.includes(area) && '✓ '}{slugToLabel(area)}
                 </span>
               ))}
             </div>
@@ -106,7 +105,7 @@ export default function GrantDetailPage() {
             {/* Eligibility */}
             <p className="text-[11px] uppercase tracking-wide text-gray-400 font-medium mb-2">Eligibility</p>
             <div className="flex flex-wrap gap-1.5">
-              {grant.eligibility_types.map(e => (
+              {grant.eligibility_types.map((e: string) => (
                 <span key={e} className="text-xs px-2.5 py-1 rounded-full bg-blue-50 text-blue-700">
                   {slugToLabel(e)}
                 </span>
@@ -155,12 +154,12 @@ export default function GrantDetailPage() {
             <button
               onClick={() => toggleWatchlist.mutate(grant.id)}
               className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-colors ${
-                grant.is_watchlisted
+                (grant as any).is_watchlisted
                   ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
                   : 'bg-emerald-600 text-white hover:bg-emerald-700'
               }`}
             >
-              {grant.is_watchlisted ? '✓ Saved to watchlist' : '+ Save to watchlist'}
+              {(grant as any).is_watchlisted ? '✓ Saved to watchlist' : '+ Save to watchlist'}
             </button>
             <a
               href={`/api/grants/${grant.id}/calendar.ics`}

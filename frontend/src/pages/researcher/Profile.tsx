@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../../hooks/useAuth'
 import { usersApi as userApi } from '../../api'
 import { apiClient } from '../../api/client'
-import { RESEARCH_AREAS, ELIGIBILITY_TYPES } from '../../types'
+import { RESEARCH_AREAS_MAP, ELIGIBILITY_TYPES } from '../../types'
 import { slugToLabel } from '../../utils'
 import { useToast } from '../../components/ui/Toast'
 
@@ -18,7 +18,7 @@ export default function ProfilePage() {
   const [fullName, setFullName] = useState(user?.full_name ?? '')
   const [institution, setInstitution] = useState(user?.institution ?? '')
   const [designation, setDesignation] = useState(user?.designation ?? '')
-  const [language, setLanguage] = useState<'en' | 'bn'>(user?.preferred_language ?? 'en')
+  const [language, setLanguage] = useState<'en' | 'bn'>((user?.preferred_language ?? 'en') as 'en' | 'bn')
 
   // Interests
   const [interests, setInterests] = useState<string[]>(user?.research_interests ?? [])
@@ -31,7 +31,7 @@ export default function ProfilePage() {
       setFullName(user.full_name)
       setInstitution(user.institution ?? '')
       setDesignation(user.designation ?? '')
-      setLanguage(user.preferred_language)
+      setLanguage(user.preferred_language as 'en' | 'bn')
       setInterests(user.research_interests)
       setAlertsEnabled(user.email_alerts_enabled)
     }
@@ -149,7 +149,7 @@ export default function ProfilePage() {
                     onClick={() => toggleInterest(slug)}
                     className="text-xs px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 font-medium flex items-center gap-1 hover:bg-emerald-100 transition-colors"
                   >
-                    ✓ {RESEARCH_AREAS[slug] ?? slugToLabel(slug)}
+                    ✓ {RESEARCH_AREAS_MAP[slug] ?? slugToLabel(slug)}
                     <span className="text-emerald-400 ml-0.5">×</span>
                   </button>
                 ))}
@@ -190,7 +190,7 @@ export default function ProfilePage() {
                             : 'bg-gray-50 border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-white'
                         }`}
                       >
-                        {selected && '✓ '}{RESEARCH_AREAS[slug]}
+                        {selected && '✓ '}{RESEARCH_AREAS_MAP[slug]}
                       </button>
                     )
                   })}
@@ -260,7 +260,7 @@ export default function ProfilePage() {
                 {interests.map(slug => (
                   <div key={slug} className="flex items-center gap-2 text-xs text-gray-600">
                     <span className="text-emerald-500">✓</span>
-                    {RESEARCH_AREAS[slug] ?? slugToLabel(slug)}
+                    {RESEARCH_AREAS_MAP[slug] ?? slugToLabel(slug)}
                   </div>
                 ))}
               </div>

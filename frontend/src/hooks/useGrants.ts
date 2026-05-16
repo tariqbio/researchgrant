@@ -1,18 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from 'react-query'
-import { grantsApi, pipelineApi } from '../api'
-
-export interface GrantSearchParams {
-  q?: string
-  areas?: string[]
-  sort_by?: string
-  page?: number
-  page_size?: number
-}
+import { grantApi, pipelineApi } from '../api'
+import type { GrantSearchParams } from '../types'
 
 export function useGrants(params: GrantSearchParams) {
   return useQuery(
     ['grants', params],
-    () => grantsApi.list(params),
+    () => grantApi.list(params),
     { keepPreviousData: true, staleTime: 60_000 }
   )
 }
@@ -20,19 +13,19 @@ export function useGrants(params: GrantSearchParams) {
 export function useGrant(id: string) {
   return useQuery(
     ['grant', id],
-    () => grantsApi.get(id).then(r => r.data),
+    () => grantApi.get(id),
     { enabled: !!id }
   )
 }
 
 export function useWatchlist(page = 1) {
-  return useQuery(['watchlist', page], () => grantsApi.watchlist())
+  return useQuery(['watchlist', page], () => grantApi.myWatchlist(page))
 }
 
 export function useToggleWatchlist() {
   const qc = useQueryClient()
   return useMutation(
-    (grantId: string) => grantsApi.toggleWatchlist(grantId),
+    (grantId: string) => grantApi.toggleWatchlist(grantId),
     {
       onSuccess: (_, grantId) => {
         qc.invalidateQueries(['grant', grantId])
@@ -45,8 +38,8 @@ export function useToggleWatchlist() {
 export function useReviewQueue(page = 1) {
   return useQuery(
     ['reviewQueue', page],
-    () => grantsApi.adminQueue({ page }).then(r => r.data),
-    { refetchInterval: 30_000 }
+    () => grantApi.reviewQueue(page),
+    { refetchInterval: 30_000 }  // poll every 30s
   )
 }
 
@@ -54,7 +47,7 @@ export function useApproveGrant() {
   const qc = useQueryClient()
   return useMutation(
     ({ id, edits, note }: { id: string; edits?: Record<string, unknown>; note?: string }) =>
-      grantsApi.adminAction(id, 'approve', edits as any, note),
+      grantApi.approve(id, edits as any, note),
     { onSuccess: () => qc.invalidateQueries('reviewQueue') }
   )
 }
@@ -62,8 +55,7 @@ export function useApproveGrant() {
 export function useRejectGrant() {
   const qc = useQueryClient()
   return useMutation(
-    ({ id, note }: { id: string; note?: string }) =>
-      grantsApi.adminAction(id, 'reject', undefined, note),
+    ({ id, note }: { id: string; note?: string }) => grantApi.reject(id, note),
     { onSuccess: () => qc.invalidateQueries('reviewQueue') }
   )
 }
@@ -71,17 +63,12 @@ export function useRejectGrant() {
 export function useUploadPdf() {
   const qc = useQueryClient()
   return useMutation(
-    ({ file, sourceId }: { file: File; sourceId?: string }) => {
-      const fd = new FormData()
-      fd.append('file', file)
-      if (sourceId) fd.append('source_id', sourceId)
-      return pipelineApi.upload(fd).then(r => r.data)
-    },
+    ({ file, sourceId }: { file: File; sourceId?: string }) =>
+      pipelineApi.uploadPdf(file, sourceId),
     { onSuccess: () => qc.invalidateQueries('reviewQueue') }
   )
 }
 
 export function useSources() {
-  // Sources are fetched via the pipeline API — return empty array if not available
-  return useQuery('sources', () => Promise.resolve([] as any[]), { staleTime: 300_000 })
+  return useQuery('sources', pipelineApi.sources, { staleTime: 300_000 })
 }

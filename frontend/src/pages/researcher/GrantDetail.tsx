@@ -1,5 +1,4 @@
 import { useParams, Link } from 'react-router-dom'
-import { useAuth } from '../../hooks/useAuth'
 import { useGrant, useToggleWatchlist } from '../../hooks/useGrants'
 import { formatDeadline, formatFunding, deadlineDaysLeft, deadlineUrgency, urgencyClasses, slugToLabel } from '../../utils'
 
@@ -7,7 +6,6 @@ export default function GrantDetailPage() {
   const { id } = useParams<{ id: string }>()
   const { data: grant, isLoading } = useGrant(id!)
   const toggleWatchlist = useToggleWatchlist()
-  const { user } = useAuth()
 
   if (isLoading) return (
     <div className="max-w-5xl mx-auto px-4 py-8 space-y-4">
@@ -40,7 +38,7 @@ export default function GrantDetailPage() {
             {/* Agency */}
             <div className="flex items-center gap-2 mb-3">
               <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-[10px] font-bold text-blue-700 flex-shrink-0">
-                {grant.issuing_agency.split(' ').map((w: string) => w[0]).join('').slice(0, 3)}
+                {grant.issuing_agency.split(' ').map(w => w[0]).join('').slice(0, 3)}
               </div>
               <div>
                 <p className="text-xs font-medium text-gray-700">{grant.issuing_agency}</p>
@@ -68,7 +66,7 @@ export default function GrantDetailPage() {
                   {formatFunding(grant.funding_min, grant.funding_max, grant.currency)}
                 </span>
               )}
-              {(grant as any).match_reasons && (grant as any).match_reasons.length > 0 && (
+              {grant.match_reasons && grant.match_reasons.length > 0 && (
                 <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700">
                   ✓ Matches your profile
                 </span>
@@ -88,16 +86,16 @@ export default function GrantDetailPage() {
             {/* Research areas */}
             <p className="text-[11px] uppercase tracking-wide text-gray-400 font-medium mb-2">Research areas</p>
             <div className="flex flex-wrap gap-1.5 mb-4">
-              {grant.research_areas.map((area: string) => (
+              {grant.research_areas.map(area => (
                 <span
                   key={area}
                   className={`text-xs px-2.5 py-1 rounded-full ${
-                    (grant as any).match_reasons?.includes(area)
+                    grant.match_reasons?.includes(area)
                       ? 'bg-emerald-50 text-emerald-700 font-medium'
                       : 'bg-purple-50 text-purple-700'
                   }`}
                 >
-                  {(grant as any).match_reasons?.includes(area) && '✓ '}{slugToLabel(area)}
+                  {grant.match_reasons?.includes(area) && '✓ '}{slugToLabel(area)}
                 </span>
               ))}
             </div>
@@ -105,7 +103,7 @@ export default function GrantDetailPage() {
             {/* Eligibility */}
             <p className="text-[11px] uppercase tracking-wide text-gray-400 font-medium mb-2">Eligibility</p>
             <div className="flex flex-wrap gap-1.5">
-              {grant.eligibility_types.map((e: string) => (
+              {grant.eligibility_types.map(e => (
                 <span key={e} className="text-xs px-2.5 py-1 rounded-full bg-blue-50 text-blue-700">
                   {slugToLabel(e)}
                 </span>
@@ -135,31 +133,15 @@ export default function GrantDetailPage() {
         {/* Sidebar */}
         <div className="space-y-4">
           <div className="bg-white border border-gray-100 rounded-xl p-4 space-y-3">
-            {user?.role === 'researcher' && grant.status === 'published' && (
-              <Link
-                to={`/grants/${grant.id}/apply`}
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold bg-green-600 text-white hover:bg-green-700 transition"
-              >
-                🚀 Apply to this Grant
-              </Link>
-            )}
-            {!user && (
-              <Link
-                to="/login"
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold bg-green-600 text-white hover:bg-green-700 transition"
-              >
-                Sign in to Apply
-              </Link>
-            )}
             <button
               onClick={() => toggleWatchlist.mutate(grant.id)}
               className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-colors ${
-                (grant as any).is_watchlisted
+                grant.is_watchlisted
                   ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
                   : 'bg-emerald-600 text-white hover:bg-emerald-700'
               }`}
             >
-              {(grant as any).is_watchlisted ? '✓ Saved to watchlist' : '+ Save to watchlist'}
+              {grant.is_watchlisted ? '✓ Saved to watchlist' : '+ Save to watchlist'}
             </button>
             <a
               href={`/api/grants/${grant.id}/calendar.ics`}

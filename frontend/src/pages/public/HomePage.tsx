@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { grantsApi as grantApi } from '../../api'
+import { grantApi } from '../../api'
 import { useQuery } from 'react-query'
 import { formatDeadline, deadlineDaysLeft, deadlineUrgency, urgencyClasses, formatFunding } from '../../utils'
 import { apiClient } from '../../api/client'
@@ -124,14 +124,14 @@ export default function HomePage() {
           <h2 className="text-lg font-semibold text-gray-900">Latest grants</h2>
           <Link to="/grants/public" className="text-sm text-emerald-600 hover:text-emerald-700">Browse all →</Link>
         </div>
-        {(latestGrants?.data?.items ?? []).length === 0 ? (
+        {latestGrants?.items.length === 0 ? (
           <div className="text-center py-16 bg-gray-50 rounded-2xl text-gray-400">
             <p className="font-medium">No grants published yet</p>
             <p className="text-sm mt-1">Check back soon — we're adding grants daily.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {(latestGrants?.data?.items ?? []).map((grant: any) => {
+            {latestGrants?.items.map(grant => {
               const days = deadlineDaysLeft(grant.deadline)
               const urgency = deadlineUrgency(days)
               const isExpired = days !== null && days < 0

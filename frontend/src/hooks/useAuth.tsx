@@ -1,11 +1,12 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
-import { usersApi } from '../api'
-import type { User } from '../types'
+import { authApi, userApi } from '../api'
+import type { UserV2 } from '../types'
 
 interface AuthContextType {
-  user: User | null
+  user: UserV2 | null
   loading: boolean
-  login: (token: string, user: User) => void
+  login: (email: string, password: string) => Promise<UserV2>
+  register: (data: { email: string; password: string; full_name: string; institution?: string }) => Promise<UserV2>
   logout: () => void
   refreshUser: () => Promise<void>
 }
@@ -13,14 +14,14 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
+  const [user, setUser] = useState<UserV2 | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const token = localStorage.getItem('access_token')
     if (token) {
-      usersApi.me()
-        .then(r => setUser(r.data))
+      userApi.me()
+        .then(u => setUser(u as UserV2))
         .catch(() => localStorage.removeItem('access_token'))
         .finally(() => setLoading(false))
     } else {
@@ -28,9 +29,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const login = (token: string, userData: User) => {
-    localStorage.setItem('access_token', token)
-    setUser(userData)
+  const login = async (email: string, password: string) => {
+    const data = await authApi.login(email, password)
+    localStorage.setItem('access_token', data.access_token)
+    setUser(data.user as UserV2)
+    return data.user as UserV2
+  }
+
+  const register = async (payload: { email: string; password: string; full_name: string; institution?: string }) => {
+    const data = await authApi.register(payload)
+    localStorage.setItem('access_token', data.access_token)
+    setUser(data.user as UserV2)
+    return data.user as UserV2
   }
 
   const logout = () => {
@@ -39,12 +49,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const refreshUser = async () => {
-    const r = await usersApi.me()
-    setUser(r.data)
+    const updated = await userApi.me()
+    setUser(updated as UserV2)
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   )

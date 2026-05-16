@@ -1,4 +1,6 @@
 import { useParams, Link } from 'react-router-dom'
+import { Link } from 'react-router-dom'
+import { useAuth } from '../../hooks/useAuth'
 import { useGrant, useToggleWatchlist } from '../../hooks/useGrants'
 import { formatDeadline, formatFunding, deadlineDaysLeft, deadlineUrgency, urgencyClasses, slugToLabel } from '../../utils'
 
@@ -6,6 +8,7 @@ export default function GrantDetailPage() {
   const { id } = useParams<{ id: string }>()
   const { data: grant, isLoading } = useGrant(id!)
   const toggleWatchlist = useToggleWatchlist()
+  const { user } = useAuth()
 
   if (isLoading) return (
     <div className="max-w-5xl mx-auto px-4 py-8 space-y-4">
@@ -133,6 +136,22 @@ export default function GrantDetailPage() {
         {/* Sidebar */}
         <div className="space-y-4">
           <div className="bg-white border border-gray-100 rounded-xl p-4 space-y-3">
+            {user?.role === 'researcher' && grant.status === 'published' && (
+              <Link
+                to={`/grants/${grant.id}/apply`}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold bg-green-600 text-white hover:bg-green-700 transition"
+              >
+                🚀 Apply to this Grant
+              </Link>
+            )}
+            {!user && (
+              <Link
+                to="/login"
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold bg-green-600 text-white hover:bg-green-700 transition"
+              >
+                Sign in to Apply
+              </Link>
+            )}
             <button
               onClick={() => toggleWatchlist.mutate(grant.id)}
               className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-colors ${

@@ -13,7 +13,6 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 
 def hash_password(password: str) -> str:
-    # bcrypt hard-limits at 72 bytes
     pw_bytes = password.encode("utf-8")[:72]
     return bcrypt.hashpw(pw_bytes, bcrypt.gensalt()).decode("utf-8")
 
@@ -28,11 +27,7 @@ def create_access_token(subject: str, expires_delta: Optional[timedelta] = None)
     expire = datetime.utcnow() + (
         expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     )
-    return jwt.encode(
-        {"sub": subject, "exp": expire},
-        settings.SECRET_KEY,
-        algorithm="HS256",
-    )
+    return jwt.encode({"sub": subject, "exp": expire}, settings.SECRET_KEY, algorithm="HS256")
 
 
 def decode_token(token: str) -> Optional[str]:
@@ -45,7 +40,6 @@ def decode_token(token: str) -> Optional[str]:
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     from app.models.user import User
-
     user_id = decode_token(token)
     if not user_id:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
@@ -56,6 +50,23 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
 
 
 def get_current_admin(current_user=Depends(get_current_user)):
-    if not current_user.is_admin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    """Moderator OR god_admin — anyone who can manage the platform."""
+    if current_user.role not in ("moderator", "god_admin") and not current_user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Staff access required")
+    return current_user
+
+
+def get_god_admin(current_user=Depends(get_current_user)):
+    """Only god_admin."""
+    if current_user.role != "god_admin" and not current_user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="God admin access required")
+    return current_user
+
+
+def get_current_org(current_user=Depends(get_current_user)):
+    """Verified org account."""
+    if current_user.role != "org":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Organization account required")
+    if not current_user.org_verified:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Your organization account is pending verification")
     return current_user

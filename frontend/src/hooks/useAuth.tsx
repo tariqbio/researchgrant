@@ -1,12 +1,11 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
-import { authApi, userApi } from '../api'
+import { usersApi } from '../api'
 import type { User } from '../types'
 
 interface AuthContextType {
   user: User | null
   loading: boolean
-  login: (email: string, password: string) => Promise<User>
-  register: (data: { email: string; password: string; full_name: string; institution?: string }) => Promise<User>
+  login: (token: string, user: User) => void
   logout: () => void
   refreshUser: () => Promise<void>
 }
@@ -20,8 +19,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const token = localStorage.getItem('access_token')
     if (token) {
-      userApi.me()
-        .then(setUser)
+      usersApi.me()
+        .then(r => setUser(r.data))
         .catch(() => localStorage.removeItem('access_token'))
         .finally(() => setLoading(false))
     } else {
@@ -29,18 +28,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const login = async (email: string, password: string) => {
-    const data = await authApi.login(email, password)
-    localStorage.setItem('access_token', data.access_token)
-    setUser(data.user)
-    return data.user
-  }
-
-  const register = async (payload: { email: string; password: string; full_name: string; institution?: string }) => {
-    const data = await authApi.register(payload)
-    localStorage.setItem('access_token', data.access_token)
-    setUser(data.user)
-    return data.user
+  const login = (token: string, userData: User) => {
+    localStorage.setItem('access_token', token)
+    setUser(userData)
   }
 
   const logout = () => {
@@ -49,12 +39,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const refreshUser = async () => {
-    const updated = await userApi.me()
-    setUser(updated)
+    const r = await usersApi.me()
+    setUser(r.data)
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   )

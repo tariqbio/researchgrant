@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { grantApi } from '../../api'
+import { grantsApi as grantApi } from '../../api'
 import { useQuery } from 'react-query'
 import { formatDeadline, deadlineDaysLeft, deadlineUrgency, urgencyClasses, formatFunding } from '../../utils'
 import { apiClient } from '../../api/client'

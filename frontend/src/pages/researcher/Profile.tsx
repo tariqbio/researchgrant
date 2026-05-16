@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../../hooks/useAuth'
-import { userApi } from '../../api'
+import { usersApi as userApi } from '../../api'
 import { apiClient } from '../../api/client'
 import { RESEARCH_AREAS, ELIGIBILITY_TYPES } from '../../types'
 import { slugToLabel } from '../../utils'

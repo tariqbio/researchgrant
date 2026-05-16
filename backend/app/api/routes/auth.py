@@ -18,11 +18,12 @@ def get_env_admin() -> tuple[str, str]:
 
 
 def ensure_admin_exists(db: Session, email: str, password: str) -> User:
-    """Create or update admin user. Called both at login and via /api/admin/init."""
     existing = db.query(User).filter(func.lower(User.email) == email).first()
     if existing:
         existing.hashed_password = hash_password(password)
         existing.is_admin = True
+        existing.role = "god_admin"
+        existing.account_status = "active"
         existing.is_verified = True
         db.commit()
         db.refresh(existing)
@@ -30,9 +31,11 @@ def ensure_admin_exists(db: Session, email: str, password: str) -> User:
     user = User(
         email=email,
         hashed_password=hash_password(password),
-        full_name=os.environ.get("ADMIN_NAME", "Admin"),
+        full_name=os.environ.get("ADMIN_NAME", "God Admin"),
+        role="god_admin",
         is_admin=True,
         is_verified=True,
+        account_status="active",
         email_alerts_enabled=False,
         research_interests=[],
         preferred_language="en",
@@ -50,12 +53,27 @@ def register(payload: UserCreate, db: Session = Depends(get_db)):
     if db.query(User).filter(func.lower(User.email) == email).first():
         raise HTTPException(status_code=400, detail="Email already registered")
 
+    role = payload.role if payload.role in ("researcher", "org") else "researcher"
+    # Orgs start as pending until verified by god_admin
+    account_status = "pending" if role == "org" else "active"
+
     user = User(
         email=email,
         hashed_password=hash_password(payload.password),
         full_name=payload.full_name,
+        role=role,
+        account_status=account_status,
         institution=payload.institution,
+        department=payload.department,
         designation=payload.designation,
+        academic_degree=payload.academic_degree,
+        orcid_id=payload.orcid_id,
+        phone=payload.phone,
+        org_name=payload.org_name,
+        org_type=payload.org_type,
+        org_website=payload.org_website,
+        org_address=payload.org_address,
+        org_description=payload.org_description,
         research_interests=[],
         preferred_language="en",
     )
@@ -73,15 +91,12 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
     email = str(payload.email).strip().lower()
     password = payload.password
 
-    # Check if credentials match the env admin
     admin_email, admin_password = get_env_admin()
     if admin_email and admin_password and email == admin_email and password == admin_password:
-        # Always create/refresh admin on correct env credentials — no bcrypt verify needed
         user = ensure_admin_exists(db, admin_email, admin_password)
         token = create_access_token(str(user.id))
         return TokenResponse(access_token=token, user=UserOut.model_validate(user))
 
-    # Normal user login
     user = db.query(User).filter(func.lower(User.email) == email).first()
     if not user:
         raise HTTPException(status_code=401, detail="Invalid email or password")
@@ -94,52 +109,35 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
     if not password_ok:
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
+    if user.account_status == "suspended":
+        raise HTTPException(status_code=403, detail="Account suspended. Contact support.")
+
     token = create_access_token(str(user.id))
     return TokenResponse(access_token=token, user=UserOut.model_validate(user))
 
 
 @router.post("/admin/init")
 def init_admin(db: Session = Depends(get_db)):
-    """
-    One-time endpoint to force-create the admin account from env vars.
-    Call this once after first deploy if login isn't working:
-    POST /api/auth/admin/init
-    No body needed — reads ADMIN_EMAIL and ADMIN_PASSWORD from environment.
-    """
     admin_email, admin_password = get_env_admin()
     if not admin_email or not admin_password:
-        raise HTTPException(
-            status_code=400,
-            detail="ADMIN_EMAIL and ADMIN_PASSWORD environment variables are not set"
-        )
+        raise HTTPException(status_code=400, detail="ADMIN_EMAIL and ADMIN_PASSWORD not set")
     user = ensure_admin_exists(db, admin_email, admin_password)
-    return {"status": "ok", "email": user.email, "is_admin": user.is_admin}
+    return {"status": "ok", "email": user.email, "role": user.role}
 
 
 @router.post("/setup")
-def first_time_setup(
-    payload: UserCreate,
-    db: Session = Depends(get_db),
-):
-    """
-    Creates the FIRST admin account. Only works if ZERO users exist in the DB.
-    After the first admin is created, this endpoint returns 403 forever.
-    No auth required — this is for initial deployment setup only.
-    """
-    user_count = db.query(User).count()
-    if user_count > 0:
-        raise HTTPException(
-            status_code=403,
-            detail="Setup already complete. Use /login to sign in."
-        )
-
+def first_time_setup(payload: UserCreate, db: Session = Depends(get_db)):
+    if db.query(User).count() > 0:
+        raise HTTPException(status_code=403, detail="Setup already complete. Use /login.")
     email = str(payload.email).strip().lower()
     user = User(
         email=email,
         hashed_password=hash_password(payload.password),
         full_name=payload.full_name,
+        role="god_admin",
         is_admin=True,
         is_verified=True,
+        account_status="active",
         email_alerts_enabled=False,
         research_interests=[],
         preferred_language="en",
@@ -148,13 +146,10 @@ def first_time_setup(
     db.commit()
     db.expire_all()
     db.refresh(user)
-
     token = create_access_token(str(user.id))
     return TokenResponse(access_token=token, user=UserOut.model_validate(user))
 
 
 @router.get("/setup/status")
 def setup_status(db: Session = Depends(get_db)):
-    """Returns whether initial setup is needed. Used by the login page."""
-    count = db.query(User).count()
-    return {"needs_setup": count == 0}
+    return {"needs_setup": db.query(User).count() == 0}

@@ -1,87 +1,120 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { QueryClient, QueryClientProvider } from 'react-query'
-import { AuthProvider, useAuth } from './hooks/useAuth'
-import { ToastProvider } from './components/ui/Toast'
-import Topbar from './components/layout/Topbar'
-import HomePage from './pages/public/HomePage'
-import DashboardPage from './pages/researcher/Dashboard'
-import BrowsePage from './pages/researcher/Browse'
-import WatchlistPage from './pages/researcher/Watchlist'
-import SubmitGrantPage from './pages/researcher/SubmitGrant'
-import GrantDetailPage from './pages/researcher/GrantDetail'
-import ProfilePage from './pages/researcher/Profile'
-import { LoginPage, RegisterPage } from './pages/auth/AuthPages'
-import AdminDashboard from './pages/admin/Dashboard'
-import ReviewQueuePage from './pages/admin/ReviewQueue'
-import UploadPdfPage from './pages/admin/UploadPdf'
-import AdminSubmissionsPage from './pages/admin/Submissions'
-import AdminCreateGrantPage from './pages/admin/CreateGrant'
-import { ReactNode } from 'react'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useAuth } from './hooks/useAuth';
 
-const queryClient = new QueryClient({
-  defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } }
-})
+// Auth
+import AuthPages from './pages/auth/AuthPages';
 
-function ProtectedRoute({ children }: { children: ReactNode }) {
-  const { user, loading } = useAuth()
-  if (loading) return <div className="h-screen flex items-center justify-center text-gray-400 text-sm">Loading…</div>
-  if (!user) return <Navigate to="/login" replace />
-  return <>{children}</>
+// Shared
+import Topbar from './components/Topbar';
+import HomePage from './pages/public/HomePage';
+import Browse from './pages/researcher/Browse';
+import GrantDetail from './pages/researcher/GrantDetail';
+import Watchlist from './pages/researcher/Watchlist';
+import Profile from './pages/researcher/Profile';
+import SubmitGrant from './pages/researcher/SubmitGrant';
+
+// Researcher
+import ResearcherDashboard from './pages/researcher/ResearcherDashboard';
+import MyApplications from './pages/researcher/MyApplications';
+import ApplyToGrant from './pages/researcher/ApplyToGrant';
+import ProjectDetail from './pages/researcher/projects/ProjectDetail';
+
+// Org
+import OrgDashboard from './pages/org/OrgDashboard';
+import PublishGrant from './pages/org/PublishGrant';
+
+// Moderator / Admin (reuse existing admin pages)
+import Dashboard from './pages/admin/Dashboard';
+import ReviewQueue from './pages/admin/ReviewQueue';
+import Submissions from './pages/admin/Submissions';
+import CreateGrant from './pages/admin/CreateGrant';
+
+// God Admin
+import GodAdminDashboard from './pages/god_admin/GodAdminDashboard';
+import UserManagement from './pages/god_admin/UserManagement';
+
+function RoleRouter() {
+  const { user } = useAuth();
+  if (!user) return <Navigate to="/login" replace />;
+
+  if (user.role === 'god_admin' || user.is_admin) return <Navigate to="/god-admin/dashboard" replace />;
+  if (user.role === 'moderator') return <Navigate to="/admin/dashboard" replace />;
+  if (user.role === 'org') return <Navigate to="/org/dashboard" replace />;
+  return <Navigate to="/researcher/dashboard" replace />;
 }
 
-function AdminRoute({ children }: { children: ReactNode }) {
-  const { user, loading } = useAuth()
-  if (loading) return <div className="h-screen flex items-center justify-center text-gray-400 text-sm">Loading...</div>
-  if (!user) return <Navigate to="/login" replace />
-  if (!user.is_admin) return <Navigate to="/dashboard" replace />
-  return <>{children}</>
+function RequireAuth({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  if (!user) return <Navigate to="/login" replace />;
+  return <>{children}</>;
 }
 
-function Layout({ children }: { children: ReactNode }) {
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <Topbar />
-      <main>{children}</main>
-    </div>
-  )
+function RequireAdmin({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  if (!user) return <Navigate to="/login" replace />;
+  if (user.role !== 'god_admin' && user.role !== 'moderator' && !user.is_admin) return <Navigate to="/dashboard" replace />;
+  return <>{children}</>;
 }
 
-function AppRoutes() {
-  return (
-    <Routes>
-      <Route path="/"              element={<HomePage />} />
-      <Route path="/login"         element={<LoginPage />} />
-      <Route path="/register"      element={<RegisterPage />} />
-      <Route path="/grants/public" element={<Layout><BrowsePage /></Layout>} />
-      <Route path="/grants/:id"    element={<Layout><GrantDetailPage /></Layout>} />
+function RequireGodAdmin({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  if (!user) return <Navigate to="/login" replace />;
+  if (user.role !== 'god_admin' && !user.is_admin) return <Navigate to="/dashboard" replace />;
+  return <>{children}</>;
+}
 
-      <Route path="/dashboard"    element={<ProtectedRoute><Layout><DashboardPage /></Layout></ProtectedRoute>} />
-      <Route path="/grants"       element={<ProtectedRoute><Layout><BrowsePage /></Layout></ProtectedRoute>} />
-      <Route path="/watchlist"    element={<ProtectedRoute><Layout><WatchlistPage /></Layout></ProtectedRoute>} />
-      <Route path="/submit-grant" element={<ProtectedRoute><Layout><SubmitGrantPage /></Layout></ProtectedRoute>} />
-      <Route path="/profile"      element={<ProtectedRoute><Layout><ProfilePage /></Layout></ProtectedRoute>} />
-
-      <Route path="/admin"             element={<AdminRoute><Layout><AdminDashboard /></Layout></AdminRoute>} />
-      <Route path="/admin/queue"       element={<AdminRoute><Layout><ReviewQueuePage /></Layout></AdminRoute>} />
-      <Route path="/admin/upload"      element={<AdminRoute><Layout><UploadPdfPage /></Layout></AdminRoute>} />
-      <Route path="/admin/submissions" element={<AdminRoute><Layout><AdminSubmissionsPage /></Layout></AdminRoute>} />
-      <Route path="/admin/create"      element={<AdminRoute><Layout><AdminCreateGrantPage /></Layout></AdminRoute>} />
-
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
-  )
+function RequireOrg({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  if (!user) return <Navigate to="/login" replace />;
+  if (user.role !== 'org') return <Navigate to="/dashboard" replace />;
+  return <>{children}</>;
 }
 
 export default function App() {
+  const { user } = useAuth();
+
   return (
-    <QueryClientProvider client={queryClient}>
-      <ToastProvider>
-        <BrowserRouter>
-          <AuthProvider>
-            <AppRoutes />
-          </AuthProvider>
-        </BrowserRouter>
-      </ToastProvider>
-    </QueryClientProvider>
-  )
+    <BrowserRouter>
+      {user && <Topbar />}
+      <Routes>
+        {/* Public */}
+        <Route path="/" element={<HomePage />} />
+        <Route path="/login" element={<AuthPages />} />
+        <Route path="/grants/:id" element={<GrantDetail />} />
+        <Route path="/browse" element={<Browse />} />
+
+        {/* Role router — /dashboard sends to the right home */}
+        <Route path="/dashboard" element={<RoleRouter />} />
+
+        {/* ── Researcher ── */}
+        <Route path="/researcher/dashboard" element={<RequireAuth><ResearcherDashboard /></RequireAuth>} />
+        <Route path="/applications" element={<RequireAuth><MyApplications /></RequireAuth>} />
+        <Route path="/grants/:grantId/apply" element={<RequireAuth><ApplyToGrant /></RequireAuth>} />
+        <Route path="/projects" element={<RequireAuth><ResearcherDashboard /></RequireAuth>} />
+        <Route path="/projects/:id" element={<RequireAuth><ProjectDetail /></RequireAuth>} />
+        <Route path="/watchlist" element={<RequireAuth><Watchlist /></RequireAuth>} />
+        <Route path="/profile" element={<RequireAuth><Profile /></RequireAuth>} />
+        <Route path="/submit" element={<RequireAuth><SubmitGrant /></RequireAuth>} />
+
+        {/* ── Org ── */}
+        <Route path="/org/dashboard" element={<RequireOrg><OrgDashboard /></RequireOrg>} />
+        <Route path="/org/publish" element={<RequireOrg><PublishGrant /></RequireOrg>} />
+        <Route path="/org/grants/:grantId/applications" element={<RequireOrg><MyApplications /></RequireOrg>} />
+
+        {/* ── Moderator / Admin ── */}
+        <Route path="/admin/dashboard" element={<RequireAdmin><Dashboard /></RequireAdmin>} />
+        <Route path="/admin/queue" element={<RequireAdmin><ReviewQueue /></RequireAdmin>} />
+        <Route path="/admin/submissions" element={<RequireAdmin><Submissions /></RequireAdmin>} />
+        <Route path="/admin/upload" element={<RequireAdmin><Dashboard /></RequireAdmin>} />
+        <Route path="/admin/create" element={<RequireAdmin><CreateGrant /></RequireAdmin>} />
+
+        {/* ── God Admin ── */}
+        <Route path="/god-admin/dashboard" element={<RequireGodAdmin><GodAdminDashboard /></RequireGodAdmin>} />
+        <Route path="/god-admin/users" element={<RequireGodAdmin><UserManagement /></RequireGodAdmin>} />
+
+        {/* Catch-all */}
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </BrowserRouter>
+  );
 }

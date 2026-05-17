@@ -60,7 +60,7 @@ function FirstTimeSetup() {
       const { access_token, user } = res.data
       localStorage.setItem('access_token', access_token)
       // Use the login hook to set user state
-      navigate('/admin')
+      navigate('/dashboard')
       window.location.reload()   // simplest way to re-init auth context
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Setup failed. Please try again.')
@@ -147,7 +147,7 @@ export function LoginPage() {
     setError(''); setLoading(true)
     try {
       const user = await login(email, password)
-      navigate(user.role === 'god_admin' || user.is_admin ? '/admin' : user.role === 'org' ? '/org/dashboard' : '/dashboard')
+      navigate('/dashboard')
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Invalid email or password.')
     } finally {
@@ -205,7 +205,7 @@ export function RegisterPage() {
     setError(''); setLoading(true)
     try {
       const user = await register(form)
-      navigate(user.is_admin ? '/admin' : '/profile')
+      navigate('/dashboard')
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Registration failed.')
     } finally {

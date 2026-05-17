@@ -40,6 +40,8 @@ def seed_admin():
             existing.hashed_password = hash_password(password)
             existing.full_name = existing.full_name or name
             existing.is_verified = True
+            existing.role = "god_admin"
+            existing.account_status = "active"
             if not existing.is_admin:
                 existing.is_admin = True
                 db.commit()
@@ -53,6 +55,8 @@ def seed_admin():
             email=email,
             hashed_password=hash_password(password),
             full_name=name,
+            role="god_admin",
+            account_status="active",
             is_admin=True,
             is_verified=True,
             email_alerts_enabled=False,  # admin doesn't need grant alerts

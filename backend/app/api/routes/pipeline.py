@@ -1,5 +1,7 @@
 import os
+import re
 import uuid
+from urllib.request import Request, urlopen
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks
 from sqlalchemy.orm import Session
 from typing import Optional
@@ -36,15 +38,16 @@ async def upload_pdf(
     db: Session = Depends(get_db),
     admin=Depends(get_current_admin),
 ):
-    """Admin uploads a PDF grant notice. Creates an IngestionJob and queues pipeline."""
-    if not file.filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Only PDF files are accepted")
+    """Admin uploads a PDF/DOCX/TXT grant notice. Creates an IngestionJob and queues pipeline."""
+    filename = file.filename or "uploaded_notice"
+    if not filename.lower().endswith((".pdf", ".docx", ".txt")):
+        raise HTTPException(status_code=400, detail="Only PDF, DOCX, or TXT files are accepted")
 
     file_bytes = await file.read()
     if len(file_bytes) > 20 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="File too large (max 20MB)")
 
-    file_path = save_upload(file_bytes, file.filename)
+    file_path = save_upload(file_bytes, filename)
 
     job = IngestionJob(
         source_id=uuid.UUID(source_id) if source_id else None,
@@ -110,8 +113,10 @@ async def run_pipeline(job_id: uuid.UUID):
         db.commit()
 
         try:
-            raw_text = ocr_pdf(job.raw_file_path)
-            job.ocr_engine = "google_vision"
+            raw_text, engine, confidence = extract_text_from_source(job.raw_file_path, job.raw_url)
+            job.ocr_engine = engine
+            job.ocr_confidence = confidence
+            job.raw_text_path = save_raw_text(raw_text, job.id)
             job.job_status = "ai_running"
             db.commit()
         except Exception as e:
@@ -130,7 +135,7 @@ async def run_pipeline(job_id: uuid.UUID):
         try:
             extracted = await extract_grant_from_text(raw_text)
             job.ai_extracted_json = extracted
-            job.ai_model = "claude-sonnet-4-20250514"
+            job.ai_model = extracted.get("_ai_model") or "claude-sonnet-4-20250514"
             job.job_status = "pending_review"
             db.commit()
         except Exception as e:
@@ -167,30 +172,98 @@ async def run_pipeline(job_id: uuid.UUID):
         db.close()
 
 
-def ocr_pdf(file_path: str) -> str:
-    """
-    Run Google Vision OCR on a PDF file.
-    Falls back to PyMuPDF for text-based PDFs (faster, no API cost).
-    For scanned/image PDFs, Google Vision is required.
-    """
-    # Production: use google-cloud-vision
-    # from google.cloud import vision
-    # client = vision.ImageAnnotatorClient()
-    # with open(file_path, "rb") as f:
-    #     content = f.read()
-    # image = vision.Image(content=content)
-    # response = client.document_text_detection(image=image)
-    # return response.full_text_annotation.text
+def save_raw_text(raw_text: str, job_id: uuid.UUID) -> str:
+    os.makedirs(settings.STORAGE_LOCAL_PATH, exist_ok=True)
+    path = os.path.join(settings.STORAGE_LOCAL_PATH, f"{job_id}_ocr.txt")
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(raw_text)
+    return path
 
-    # Development fallback: PyMuPDF for text PDFs
+
+def extract_text_from_source(file_path: Optional[str], raw_url: Optional[str]) -> tuple[str, str, float]:
+    if raw_url and not file_path:
+        return extract_text_from_url(raw_url), "url_text", 0.55
+    if not file_path:
+        raise ValueError("No uploaded file or URL was attached to this job")
+
+    lower = file_path.lower()
+    if lower.endswith(".pdf"):
+        text = extract_text_from_pdf(file_path)
+        if text.strip():
+            return text, "pymupdf_text", 0.9
+        text = google_vision_pdf_ocr(file_path)
+        if text.strip():
+            return text, "google_vision", 0.75
+        return "", "pymupdf_empty", 0.0
+
+    if lower.endswith(".docx"):
+        return extract_text_from_docx(file_path), "python_docx", 0.9
+
+    if lower.endswith(".txt"):
+        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+            return f.read(), "plain_text", 1.0
+
+    raise ValueError("Unsupported uploaded file type")
+
+
+def extract_text_from_pdf(file_path: str) -> str:
+    import fitz
+
+    doc = fitz.open(file_path)
     try:
-        import fitz  # PyMuPDF
-        doc = fitz.open(file_path)
-        text = "\n".join(page.get_text() for page in doc)
+        return "\n".join(page.get_text() for page in doc)
+    finally:
         doc.close()
-        return text
+
+
+def google_vision_pdf_ocr(file_path: str) -> str:
+    if not (settings.GOOGLE_APPLICATION_CREDENTIALS or settings.GOOGLE_VISION_CREDENTIALS):
+        return ""
+    try:
+        import fitz
+        from google.cloud import vision
     except Exception:
         return ""
+
+    if settings.GOOGLE_VISION_CREDENTIALS and not os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"):
+        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = settings.GOOGLE_VISION_CREDENTIALS
+
+    client = vision.ImageAnnotatorClient()
+    doc = fitz.open(file_path)
+    chunks: list[str] = []
+    try:
+        for page_index in range(min(8, len(doc))):
+            page = doc[page_index]
+            pix = page.get_pixmap(matrix=fitz.Matrix(2, 2), alpha=False)
+            image = vision.Image(content=pix.tobytes("png"))
+            response = client.document_text_detection(image=image)
+            if not response.error.message:
+                chunks.append(response.full_text_annotation.text or "")
+    finally:
+        doc.close()
+    return "\n".join(chunks)
+
+
+def extract_text_from_docx(file_path: str) -> str:
+    from docx import Document
+
+    doc = Document(file_path)
+    parts = [p.text for p in doc.paragraphs if p.text.strip()]
+    for table in doc.tables:
+        for row in table.rows:
+            cells = [cell.text.strip() for cell in row.cells if cell.text.strip()]
+            if cells:
+                parts.append(" | ".join(cells))
+    return "\n".join(parts)
+
+
+def extract_text_from_url(raw_url: str) -> str:
+    req = Request(raw_url, headers={"User-Agent": "GrantBD/1.0"})
+    with urlopen(req, timeout=12) as response:
+        html = response.read(2_000_000).decode("utf-8", errors="ignore")
+    html = re.sub(r"(?is)<(script|style).*?>.*?</\1>", " ", html)
+    text = re.sub(r"(?s)<[^>]+>", " ", html)
+    return re.sub(r"\s+", " ", text).strip()
 
 
 # ── Community submissions ─────────────────────────────────────────────────────

@@ -13,9 +13,8 @@ export default function Topbar() {
     switch (user.role) {
       case 'god_admin':
         return [
-          { to: '/god-admin',       label: 'Dashboard' },
-          { to: '/god-admin/users', label: 'Users' },
-          { to: '/admin',           label: 'Moderation' },
+          { to: '/god-admin',       label: 'Platform Control' },
+          { to: '/god-admin/users', label: 'All Users' },
         ]
       case 'moderator':
         return [

@@ -2,87 +2,57 @@ import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 
-type NavLinkItem = { to: string; label: string }
-
-function roleName(user: any) {
-  if (!user) return ''
-  if (user.role === 'god_admin') return 'Platform Admin'
-  if (user.role === 'moderator' || user.is_admin) return 'Moderator'
-  if (user.role === 'org') return user.account_status === 'pending' ? 'Organization pending' : 'Organization'
-  return 'Researcher'
-}
-
-function navFor(user: any): NavLinkItem[] {
-  if (!user) return [{ to: '/grants/public', label: 'Browse grants' }]
-
-  if (user.role === 'god_admin') {
-    return [
-      { to: '/dashboard', label: 'Platform' },
-      { to: '/god-admin/users', label: 'Users' },
-      { to: '/admin/queue', label: 'Review' },
-      { to: '/admin/upload', label: 'Upload' },
-    ]
-  }
-
-  if (user.role === 'moderator' || user.is_admin) {
-    return [
-      { to: '/dashboard', label: 'Dashboard' },
-      { to: '/admin/queue', label: 'Review Queue' },
-      { to: '/admin/upload', label: 'Upload PDF' },
-      { to: '/admin/submissions', label: 'Submissions' },
-      { to: '/admin/create', label: 'Add Grant' },
-    ]
-  }
-
-  if (user.role === 'org') {
-    return [
-      { to: '/dashboard', label: 'Dashboard' },
-      { to: '/org/publish', label: 'Publish Grant' },
-      { to: '/profile', label: 'Profile' },
-    ]
-  }
-
-  return [
-    { to: '/dashboard', label: 'Dashboard' },
-    { to: '/grants', label: 'Browse' },
-    { to: '/applications', label: 'Applications' },
-    { to: '/watchlist', label: 'Watchlist' },
-    { to: '/profile', label: 'Profile' },
-  ]
-}
-
-function dashboardPathFor(user: any) {
-  if (!user) return ''
-  if (user.role === 'god_admin') return '/god-admin'
-  if (user.role === 'moderator' || user.is_admin) return '/admin'
-  if (user.role === 'org') return '/org/dashboard'
-  return '/dashboard/researcher'
-}
-
 export default function Topbar() {
   const { user, logout } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const [mobileOpen, setMobileOpen] = useState(false)
 
-  const navLinks = navFor(user)
+  const navLinks = (() => {
+    if (!user) return [{ to: '/grants/public', label: 'Browse grants' }]
+    switch (user.role) {
+      case 'god_admin':
+        return [
+          { to: '/god-admin',       label: 'Dashboard' },
+          { to: '/god-admin/users', label: 'Users' },
+          { to: '/admin',           label: 'Moderation' },
+        ]
+      case 'moderator':
+        return [
+          { to: '/admin',             label: 'Dashboard' },
+          { to: '/admin/queue',       label: 'Review Queue' },
+          { to: '/admin/upload',      label: 'Upload PDF' },
+          { to: '/admin/submissions', label: 'Submissions' },
+          { to: '/admin/create',      label: 'Add Grant' },
+        ]
+      case 'org':
+        return [
+          { to: '/org/dashboard', label: 'Dashboard' },
+          { to: '/org/publish',   label: 'Publish Grant' },
+          { to: '/profile',       label: 'Profile' },
+        ]
+      case 'researcher':
+      default:
+        return [
+          { to: '/researcher/home', label: 'Dashboard' },
+          { to: '/grants',          label: 'Browse' },
+          { to: '/watchlist',       label: 'Watchlist' },
+          { to: '/applications',    label: 'Applications' },
+          { to: '/profile',         label: 'Profile' },
+        ]
+    }
+  })()
 
-  const isActive = (to: string) => {
-    if (to === '/dashboard') return location.pathname === dashboardPathFor(user)
-    if (to === '/admin') return location.pathname.startsWith('/admin')
-    if (to === '/god-admin') return location.pathname.startsWith('/god-admin')
-    return location.pathname === to || location.pathname.startsWith(to + '/')
-  }
+  const isActive = (to: string) =>
+    location.pathname === to || location.pathname.startsWith(to + '/')
 
-  const handleLogout = () => {
-    logout()
-    navigate('/')
-    setMobileOpen(false)
-  }
+  const handleLogout = () => { logout(); navigate('/'); setMobileOpen(false) }
 
   return (
     <header className="bg-white border-b border-gray-100 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 h-12 flex items-center justify-between gap-6">
+
+        {/* Logo + desktop nav */}
         <div className="flex items-center gap-6">
           <Link to="/" className="text-[15px] font-medium text-gray-900 flex-shrink-0">
             Grant<span className="text-emerald-600">BD</span>
@@ -104,14 +74,22 @@ export default function Topbar() {
           </nav>
         </div>
 
+        {/* Right: auth + hamburger */}
         <div className="flex items-center gap-3">
           {user ? (
             <>
-              <span className="text-xs text-gray-500 hidden lg:inline-flex border border-gray-200 rounded-full px-2 py-0.5">
-                {roleName(user)}
-              </span>
-              <span className="text-sm text-gray-500 hidden sm:block truncate max-w-[140px]">
+              <span className="text-sm text-gray-500 hidden sm:flex items-center gap-2 truncate max-w-[180px]">
                 {user.full_name}
+                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full uppercase tracking-wide ${
+                  user.role === 'god_admin'  ? 'bg-purple-100 text-purple-700' :
+                  user.role === 'moderator'  ? 'bg-blue-100 text-blue-700' :
+                  user.role === 'org'        ? 'bg-amber-100 text-amber-700' :
+                                               'bg-emerald-100 text-emerald-700'
+                }`}>
+                  {user.role === 'god_admin' ? 'God Admin' :
+                   user.role === 'moderator' ? 'Moderator' :
+                   user.role === 'org'       ? 'Org' : 'Researcher'}
+                </span>
               </span>
               <button
                 onClick={handleLogout}
@@ -122,13 +100,14 @@ export default function Topbar() {
             </>
           ) : (
             <>
-              <Link to="/login" className="text-sm text-gray-500 hover:text-gray-800 hidden md:block">Sign in</Link>
+              <Link to="/login"    className="text-sm text-gray-500 hover:text-gray-800 hidden md:block">Sign in</Link>
               <Link to="/register" className="text-sm bg-emerald-600 text-white px-3 py-1.5 rounded-lg hover:bg-emerald-700 hidden md:block">
                 Sign up
               </Link>
             </>
           )}
 
+          {/* Hamburger — mobile only */}
           <button
             onClick={() => setMobileOpen(o => !o)}
             className="md:hidden p-1.5 rounded-lg text-gray-500 hover:bg-gray-100"
@@ -142,14 +121,9 @@ export default function Topbar() {
         </div>
       </div>
 
+      {/* Mobile dropdown */}
       {mobileOpen && (
         <div className="md:hidden border-t border-gray-100 bg-white px-4 py-3 space-y-1">
-          {user && (
-            <div className="px-3 pb-2 mb-2 border-b border-gray-100">
-              <p className="text-xs text-gray-400">{roleName(user)}</p>
-              <p className="text-sm text-gray-700 truncate">{user.full_name}</p>
-            </div>
-          )}
           {navLinks.map(link => (
             <Link
               key={link.to}
@@ -174,7 +148,7 @@ export default function Topbar() {
               </button>
             ) : (
               <>
-                <Link to="/login" onClick={() => setMobileOpen(false)} className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">Sign in</Link>
+                <Link to="/login"    onClick={() => setMobileOpen(false)} className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">Sign in</Link>
                 <Link to="/register" onClick={() => setMobileOpen(false)} className="block px-3 py-2 text-sm text-emerald-700 font-medium hover:bg-emerald-50 rounded-lg">Sign up free</Link>
               </>
             )}

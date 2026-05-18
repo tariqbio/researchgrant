@@ -103,17 +103,6 @@ if admin_email and admin_password:
 else:
     log("ADMIN_EMAIL or ADMIN_PASSWORD not set. Skipping admin seed.")
 
-seed_demo = os.environ.get("SEED_DEMO_DATA", "true").lower() in {"1", "true", "yes", "on"}
-if seed_demo:
-    log("Seeding demo users and sample data")
-    result = subprocess.run(["python", "-m", "app.core.seed_demo"], env=env)
-    if result.returncode == 0:
-        log("Demo data ready")
-    else:
-        log("Demo seed failed. Continuing because the app can still boot.")
-else:
-    log("SEED_DEMO_DATA is false. Skipping demo seed.")
-
 port = os.environ.get("PORT", "8000")
 log(f"Starting Uvicorn on port {port}")
 os.execvpe(

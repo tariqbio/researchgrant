@@ -3,13 +3,21 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import Optional
 from uuid import UUID
+from pydantic import BaseModel, EmailStr
 
 from app.db.session import get_db
-from app.core.security import get_god_admin, get_current_admin
+from app.core.security import get_god_admin, get_current_admin, hash_password
 from app.models.user import User
 from app.models.grant import Grant
 from app.models.application import GrantApplication, ResearchProject, Expense
 from app.schemas.user import UserOut
+
+
+class StaffCreateRequest(BaseModel):
+    full_name: str
+    email: EmailStr
+    password: str
+    role: str = "moderator"  # moderator | god_admin
 
 router = APIRouter(prefix="/god-admin", tags=["god-admin"])
 
@@ -124,3 +132,33 @@ def reactivate_user(user_id: UUID, db: Session = Depends(get_db), admin=Depends(
 def pending_orgs(db: Session = Depends(get_db), admin=Depends(get_current_admin)):
     orgs = db.query(User).filter(User.role == "org", User.account_status == "pending").order_by(User.created_at).all()
     return [UserOut.model_validate(o) for o in orgs]
+
+
+# ── Create Staff Account ───────────────────────────────────────────────────────
+
+@router.post("/staff", response_model=UserOut)
+def create_staff_account(
+    payload: StaffCreateRequest,
+    db: Session = Depends(get_db),
+    admin=Depends(get_god_admin),
+):
+    """God admin creates a moderator or god_admin account directly. No approval needed."""
+    if payload.role not in ("moderator", "god_admin"):
+        raise HTTPException(400, "Role must be moderator or god_admin")
+
+    existing = db.query(User).filter(User.email == payload.email).first()
+    if existing:
+        raise HTTPException(400, "An account with this email already exists")
+
+    user = User(
+        full_name=payload.full_name,
+        email=payload.email,
+        hashed_password=hash_password(payload.password),
+        role=payload.role,
+        is_admin=True,
+        account_status="active",
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return UserOut.model_validate(user)

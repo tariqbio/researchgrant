@@ -25,11 +25,6 @@ app.include_router(applications.router, prefix="/api")
 app.include_router(org.router, prefix="/api")
 app.include_router(god_admin.router, prefix="/api")
 
-
-@app.get("/health", include_in_schema=False)
-def health_check():
-    return {"status": "ok"}
-
 # ── Serve React SPA (production only) ────────────────────────────────────────
 _static_dir = os.path.join(os.path.dirname(__file__), "..", "static")
 if os.path.isdir(_static_dir):

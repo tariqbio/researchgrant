@@ -1,22 +1,25 @@
 """
-Grant notice extraction.
+AI Extraction Service
+=====================
+This is the most critical service in the entire pipeline.
+It takes raw OCR text (Bengali + English mixed) and extracts
+structured grant data using the Claude API.
 
-The production path uses Claude when ANTHROPIC_API_KEY is configured. For local
-testing and demo deploys, a deterministic fallback still produces a draft grant
-instead of failing the whole upload pipeline.
+The extraction prompt has been carefully engineered to handle:
+- Bengali-language notices
+- Mixed Bengali/English text
+- Poorly formatted scanned documents
+- Missing or ambiguous fields
 """
 
 import json
-import re
-from datetime import date, datetime
-from decimal import Decimal
-from typing import Any, Optional
-
 import anthropic
-
+from typing import Optional
 from app.core.config import settings
 
+client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
 
+# Canonical research area taxonomy — AI must map to these slugs
 RESEARCH_AREAS = [
     "biotechnology", "life_sciences", "agriculture", "crop_science",
     "soil_science", "food_technology", "fisheries", "veterinary",
@@ -35,289 +38,115 @@ ELIGIBILITY_TYPES = [
     "ngo_worker", "private_sector",
 ]
 
-AREA_KEYWORDS = {
-    "agriculture": ["agriculture", "agricultural", "crop", "rice", "farm", "farming", "soil"],
-    "crop_science": ["crop", "seed", "rice", "wheat", "variety"],
-    "food_technology": ["food", "nutrition", "post harvest", "processing"],
-    "climate_environment": ["climate", "environment", "environmental", "adaptation", "resilience"],
-    "public_health": ["health", "public health", "disease", "epidemiology"],
-    "medicine": ["medicine", "medical", "clinical", "hospital"],
-    "engineering": ["engineering", "technology", "prototype"],
-    "ict": ["ict", "software", "digital", "computer"],
-    "ai_ml": ["artificial intelligence", "machine learning", "ai", "ml"],
-    "data_science": ["data science", "analytics", "big data"],
-    "renewable_energy": ["renewable", "solar", "wind", "energy"],
-    "water_resources": ["water", "river", "flood", "irrigation"],
-    "education": ["education", "learning", "school", "curriculum"],
-    "social_sciences": ["social", "community", "gender", "policy"],
-    "economics": ["economics", "economic", "finance", "market"],
-    "biotechnology": ["biotechnology", "genetic", "genomics", "molecular"],
-    "life_sciences": ["life science", "biology", "biological"],
+EXTRACTION_SYSTEM_PROMPT = f"""You are an expert at extracting structured data from Bangladeshi government research grant notices. These notices may be in Bengali, English, or a mix of both.
+
+Your task is to extract grant information and return ONLY a valid JSON object — no preamble, no explanation, no markdown code fences. Just the raw JSON.
+
+Extract these exact fields:
+- title_en: Grant title in English (translate from Bengali if needed)
+- title_bn: Grant title in Bengali (original Bengali text, null if not present)
+- issuing_agency: Full name of the issuing organization in English
+- issuing_agency_bn: Bengali name of the issuing organization (null if not present)
+- deadline: Application deadline in ISO format YYYY-MM-DD (null if not found)
+- funding_min: Minimum funding amount as a number in BDT (null if not specified)
+- funding_max: Maximum funding amount as a number in BDT (null if not specified)
+- currency: Currency code, almost always "BDT" for Bangladeshi grants
+- eligibility_types: Array of who can apply, using ONLY these values: {ELIGIBILITY_TYPES}
+- research_areas: Array of relevant research areas, using ONLY these values: {RESEARCH_AREAS}
+- description_en: 2-3 sentence summary of the grant in English
+- description_bn: Original Bengali description text if present (null otherwise)
+- source_type: "government_notice" | "newspaper" | "institutional"
+
+Also include confidence scores for each field as _conf suffix (0.0 to 1.0):
+- deadline_conf, funding_min_conf, funding_max_conf, eligibility_types_conf, research_areas_conf
+- overall_confidence: weighted average of all field confidences
+
+Rules:
+- If a field is genuinely not present, use null — never guess
+- For funding amounts, convert to numbers (e.g. "৫ লক্ষ" → 500000, "20 lakh" → 2000000)
+- For deadlines, interpret Bengali date formats (e.g. "৩০ জুন ২০২৬" → "2026-06-30")
+- For research_areas, map the grant's focus to the closest slugs from the list
+- For eligibility_types, be conservative — only include if explicitly stated
+- overall_confidence below 0.5 means the document was likely unclear or incomplete
+"""
+
+FEW_SHOT_EXAMPLE = """
+Example input (Bengali notice):
+"বাংলাদেশ কৃষি গবেষণা কাউন্সিল (BARC) কৃষি ও সংশ্লিষ্ট বিজ্ঞানে গবেষণার জন্য আবেদন আহ্বান করছে। আবেদনের শেষ তারিখ ৩০ জুন ২০২৬। অনুদানের পরিমাণ ৫ লক্ষ থেকে ২০ লক্ষ টাকা। বিশ্ববিদ্যালয়ের শিক্ষক এবং গবেষণা প্রতিষ্ঠানের বিজ্ঞানীরা আবেদন করতে পারবেন।"
+
+Example output:
+{
+  "title_en": "BARC Agricultural Research Grant 2026",
+  "title_bn": "BARC কৃষি গবেষণা অনুদান ২০২৬",
+  "issuing_agency": "Bangladesh Agricultural Research Council",
+  "issuing_agency_bn": "বাংলাদেশ কৃষি গবেষণা কাউন্সিল",
+  "deadline": "2026-06-30",
+  "deadline_conf": 0.97,
+  "funding_min": 500000,
+  "funding_max": 2000000,
+  "funding_min_conf": 0.92,
+  "funding_max_conf": 0.92,
+  "currency": "BDT",
+  "eligibility_types": ["faculty", "scientist"],
+  "eligibility_types_conf": 0.88,
+  "research_areas": ["agriculture", "crop_science", "food_technology"],
+  "research_areas_conf": 0.75,
+  "description_en": "BARC invites research proposals from university faculty and scientists in agricultural and related sciences. Grants of BDT 500,000 to 2,000,000 are available for selected proposals.",
+  "description_bn": "বাংলাদেশ কৃষি গবেষণা কাউন্সিল কৃষি ও সংশ্লিষ্ট বিজ্ঞানে গবেষণার জন্য আবেদন আহ্বান করছে।",
+  "source_type": "government_notice",
+  "overall_confidence": 0.88
 }
-
-ELIGIBILITY_KEYWORDS = {
-    "faculty": ["faculty", "teacher", "professor", "lecturer"],
-    "phd_student": ["phd", "doctoral"],
-    "masters_student": ["masters", "ms student", "msc student"],
-    "undergraduate_student": ["undergraduate", "bachelor"],
-    "postdoc": ["postdoc", "postdoctoral"],
-    "scientist": ["scientist"],
-    "researcher": ["researcher", "research fellow"],
-    "government_employee": ["government employee", "public servant"],
-    "ngo_worker": ["ngo"],
-    "private_sector": ["private sector", "industry"],
-}
-
-AGENCY_HINTS = [
-    ("BARC", "Bangladesh Agricultural Research Council"),
-    ("UGC", "University Grants Commission"),
-    ("BCSIR", "Bangladesh Council of Scientific and Industrial Research"),
-    ("BRRI", "Bangladesh Rice Research Institute"),
-    ("MOST", "Ministry of Science and Technology"),
-]
-
-MONTHS = {
-    "jan": 1, "january": 1,
-    "feb": 2, "february": 2,
-    "mar": 3, "march": 3,
-    "apr": 4, "april": 4,
-    "may": 5,
-    "jun": 6, "june": 6,
-    "jul": 7, "july": 7,
-    "aug": 8, "august": 8,
-    "sep": 9, "sept": 9, "september": 9,
-    "oct": 10, "october": 10,
-    "nov": 11, "november": 11,
-    "dec": 12, "december": 12,
-}
-
-BENGALI_DIGITS = str.maketrans("০১২৩৪৫৬৭৮৯", "0123456789")
-
-
-EXTRACTION_SYSTEM_PROMPT = f"""You extract structured data from Bangladeshi research grant notices.
-Return only valid JSON, no markdown.
-
-Fields:
-title_en, title_bn, issuing_agency, issuing_agency_bn, deadline, funding_min,
-funding_max, currency, eligibility_types, research_areas, description_en,
-description_bn, source_type, deadline_conf, funding_min_conf, funding_max_conf,
-eligibility_types_conf, research_areas_conf, overall_confidence.
-
-Use only these research_areas: {RESEARCH_AREAS}
-Use only these eligibility_types: {ELIGIBILITY_TYPES}
-Use ISO YYYY-MM-DD dates. Use BDT amounts as numbers. Use null for missing values.
 """
 
 
-def normalize_text(text: str) -> str:
-    return (text or "").translate(BENGALI_DIGITS).replace("\u00a0", " ")
-
-
-def first_meaningful_line(text: str) -> str:
-    for line in text.splitlines():
-        clean = re.sub(r"\s+", " ", line).strip(" -:\t")
-        if len(clean) >= 12:
-            return clean[:180]
-    return "Uploaded Research Grant Notice"
-
-
-def detect_agency(text: str) -> str:
-    upper = text.upper()
-    for short, full in AGENCY_HINTS:
-        if short in upper or full.upper() in upper:
-            return full
-    match = re.search(r"(?:issued by|from|organization|agency)[:\s]+([A-Z][A-Za-z &().-]{5,100})", text, re.I)
-    if match:
-        return match.group(1).strip()
-    return "Unknown Issuing Agency"
-
-
-def parse_deadline(text: str) -> Optional[str]:
-    text = normalize_text(text)
-    iso = re.search(r"\b(20\d{2})[-/.](0?[1-9]|1[0-2])[-/.](0?[1-9]|[12]\d|3[01])\b", text)
-    if iso:
-        return date(int(iso.group(1)), int(iso.group(2)), int(iso.group(3))).isoformat()
-
-    dmy = re.search(r"\b(0?[1-9]|[12]\d|3[01])[-/.](0?[1-9]|1[0-2])[-/.](20\d{2})\b", text)
-    if dmy:
-        return date(int(dmy.group(3)), int(dmy.group(2)), int(dmy.group(1))).isoformat()
-
-    named = re.search(
-        r"\b(0?[1-9]|[12]\d|3[01])\s+"
-        r"(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|"
-        r"jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)"
-        r"[, ]+\s*(20\d{2})\b",
-        text,
-        re.I,
-    )
-    if named:
-        return date(int(named.group(3)), MONTHS[named.group(2).lower()], int(named.group(1))).isoformat()
-    return None
-
-
-def amount_to_bdt(number: str, unit: str = "") -> Decimal:
-    value = Decimal(number.replace(",", ""))
-    unit = unit.lower()
-    if unit in {"lakh", "lac", "lakhs"}:
-        value *= Decimal("100000")
-    elif unit in {"crore", "crores"}:
-        value *= Decimal("10000000")
-    elif unit in {"million", "mn"}:
-        value *= Decimal("1000000")
-    return value
-
-
-def parse_amounts(text: str) -> tuple[Optional[int], Optional[int]]:
-    text = normalize_text(text)
-    amounts = []
-    for match in re.finditer(r"(?i)\b(bdt|tk\.?|taka)?\s*([0-9][0-9,]*(?:\.\d+)?)\s*(lakh|lakhs|lac|crore|crores|million|mn)?\b", text):
-        currency = match.group(1)
-        number = match.group(2)
-        unit = match.group(3) or ""
-        if not currency and not unit:
-            continue
-        try:
-            value = int(amount_to_bdt(number, unit))
-        except Exception:
-            continue
-        if value >= 1000:
-            amounts.append(value)
-    if not amounts:
-        return None, None
-    amounts = sorted(set(amounts))
-    return amounts[0], amounts[-1]
-
-
-def detect_values(text: str, mapping: dict[str, list[str]], fallback: list[str]) -> list[str]:
-    lower = text.lower()
-    found = [slug for slug, words in mapping.items() if any(word in lower for word in words)]
-    return found[:5] or fallback
-
-
-def description_from_text(text: str) -> str:
-    clean = re.sub(r"\s+", " ", text).strip()
-    if not clean:
-        return "Grant notice uploaded for review."
-    return clean[:450]
-
-
-def heuristic_extract(raw_text: str) -> dict[str, Any]:
-    text = normalize_text(raw_text)
-    funding_min, funding_max = parse_amounts(text)
-    deadline = parse_deadline(text)
-    research_areas = detect_values(text, AREA_KEYWORDS, ["agriculture"])
-    eligibility = detect_values(text, ELIGIBILITY_KEYWORDS, ["researcher"])
-    agency = detect_agency(text)
-    title = first_meaningful_line(text)
-
-    confidence = 0.55
-    if deadline:
-        confidence += 0.1
-    if funding_max:
-        confidence += 0.1
-    if agency != "Unknown Issuing Agency":
-        confidence += 0.1
-
-    return {
-        "title_en": title,
-        "title_bn": None,
-        "issuing_agency": agency,
-        "issuing_agency_bn": None,
-        "deadline": deadline,
-        "deadline_conf": 0.7 if deadline else 0.0,
-        "funding_min": funding_min,
-        "funding_max": funding_max,
-        "funding_min_conf": 0.65 if funding_min else 0.0,
-        "funding_max_conf": 0.65 if funding_max else 0.0,
-        "currency": "BDT",
-        "eligibility_types": eligibility,
-        "eligibility_types_conf": 0.55,
-        "research_areas": research_areas,
-        "research_areas_conf": 0.6,
-        "description_en": description_from_text(text),
-        "description_bn": None,
-        "source_type": "government_notice",
-        "overall_confidence": min(confidence, 0.85),
-        "_ai_model": "heuristic-fallback",
-        "_extraction_note": "Claude was not configured or failed; used deterministic fallback extraction.",
-    }
-
-
-def parse_model_json(raw_json: str) -> dict[str, Any]:
-    raw_json = raw_json.strip()
-    if raw_json.startswith("```"):
-        raw_json = raw_json.strip("`")
-        raw_json = re.sub(r"^json\s*", "", raw_json, flags=re.I).strip()
-    return json.loads(raw_json)
-
-
 async def extract_grant_from_text(raw_text: str) -> dict:
-    if not raw_text.strip():
-        raise ValueError("No text was extracted from the uploaded document")
+    """
+    Send raw OCR text to Claude and get structured grant JSON back.
+    This is called after OCR completes and before human review.
+    """
+    response = client.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=2000,
+        system=EXTRACTION_SYSTEM_PROMPT,
+        messages=[
+            {
+                "role": "user",
+                "content": f"{FEW_SHOT_EXAMPLE}\n\nNow extract from this grant notice:\n\n{raw_text}"
+            }
+        ],
+    )
 
-    if not settings.ANTHROPIC_API_KEY:
-        return heuristic_extract(raw_text)
+    raw_json = response.content[0].text.strip()
 
-    try:
-        client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
-        response = client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=2000,
-            system=EXTRACTION_SYSTEM_PROMPT,
-            messages=[
-                {
-                    "role": "user",
-                    "content": "Extract this grant notice:\n\n" + raw_text[:18000],
-                }
-            ],
-        )
-        extracted = parse_model_json(response.content[0].text)
-        extracted["_ai_model"] = "claude-sonnet-4-20250514"
-        return extracted
-    except Exception as exc:
-        extracted = heuristic_extract(raw_text)
-        extracted["_extraction_note"] = f"Claude extraction failed: {exc}. Used deterministic fallback."
-        return extracted
+    # Strip markdown fences if model added them despite instructions
+    if raw_json.startswith("```"):
+        raw_json = raw_json.split("```")[1]
+        if raw_json.startswith("json"):
+            raw_json = raw_json[4:]
 
-
-def parse_iso_date(value: Any) -> Optional[date]:
-    if not value:
-        return None
-    if isinstance(value, date):
-        return value
-    try:
-        return datetime.strptime(str(value), "%Y-%m-%d").date()
-    except Exception:
-        return None
-
-
-def parse_decimal(value: Any) -> Optional[Decimal]:
-    if value in (None, ""):
-        return None
-    try:
-        return Decimal(str(value))
-    except Exception:
-        return None
+    extracted = json.loads(raw_json)
+    return extracted
 
 
 def build_grant_from_extraction(extracted: dict) -> dict:
+    """
+    Map AI extraction output to Grant model fields.
+    Called after human approval to create the Grant record.
+    """
     return {
-        "title_en": extracted.get("title_en") or "Uploaded Research Grant Notice",
+        "title_en": extracted.get("title_en"),
         "title_bn": extracted.get("title_bn"),
-        "issuing_agency": extracted.get("issuing_agency") or "Unknown Issuing Agency",
-        "agency_type": extracted.get("source_type"),
-        "deadline": parse_iso_date(extracted.get("deadline")),
-        "funding_min": parse_decimal(extracted.get("funding_min")),
-        "funding_max": parse_decimal(extracted.get("funding_max")),
-        "currency": extracted.get("currency") or "BDT",
-        "eligibility_types": extracted.get("eligibility_types") or [],
-        "research_areas": extracted.get("research_areas") or [],
+        "issuing_agency": extracted.get("issuing_agency"),
+        "deadline": extracted.get("deadline"),
+        "funding_min": extracted.get("funding_min"),
+        "funding_max": extracted.get("funding_max"),
+        "currency": extracted.get("currency", "BDT"),
+        "eligibility_types": extracted.get("eligibility_types", []),
+        "research_areas": extracted.get("research_areas", []),
         "description_en": extracted.get("description_en"),
         "description_bn": extracted.get("description_bn"),
-        "ai_confidence_score": extracted.get("overall_confidence") or 0.5,
+        "ai_confidence_score": extracted.get("overall_confidence"),
         "ai_extracted_fields": {
-            key: value
-            for key, value in extracted.items()
-            if key.endswith("_conf") or key in {"_extraction_note", "_ai_model"}
+            k: v for k, v in extracted.items() if k.endswith("_conf")
         },
     }

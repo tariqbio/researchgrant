@@ -129,6 +129,8 @@ export const godAdminApi = {
   setRole: (id: string, role: string) => apiClient.post(`/god-admin/users/${id}/set-role`, null, { params: { role } }).then(r => r.data),
   suspend: (id: string) => apiClient.post(`/god-admin/users/${id}/suspend`).then(r => r.data),
   reactivate: (id: string) => apiClient.post(`/god-admin/users/${id}/reactivate`).then(r => r.data),
+  createStaff: (data: { full_name: string; email: string; password: string; role: string }) =>
+    apiClient.post('/god-admin/staff', data).then(r => r.data),
 }
 
 // ── Auth v2 extras ─────────────────────────────────────────────────────────────
